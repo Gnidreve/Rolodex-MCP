@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock, Implementation, ListToolsResult,
+    CallToolRequestParams, CallToolResult, Content, Implementation, ListToolsResult,
     PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
@@ -56,6 +56,7 @@ impl ServerHandler for SendMailServer {
             server_info: Implementation {
                 name: "sendmail-mcp".into(),
                 version: env!("CARGO_PKG_VERSION").into(),
+                ..Default::default()
             },
             instructions: Some(
                 "Schickt E-Mails an fest konfigurierte Empfänger. Jeder Empfänger hat ein \
@@ -107,11 +108,11 @@ impl ServerHandler for SendMailServer {
             .ok_or_else(|| McpError::invalid_params("Parameter 'body' fehlt", None))?;
 
         match send_mail(&self.smtp, &contact.name, &contact.email, subject, body).await {
-            Ok(()) => Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            Ok(()) => Ok(CallToolResult::success(vec![Content::text(format!(
                 "E-Mail an {} wurde verschickt.",
                 contact.name
             ))])),
-            Err(err) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+            Err(err) => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Versand an {} fehlgeschlagen: {err:#}",
                 contact.name
             ))])),
