@@ -1,0 +1,21 @@
+# Kontaktbuch für sendmail-mcp.
+# Ausschließlich Namen + Adressen. Keine SMTP-Zugangsdaten hier (siehe .env).
+#
+# Pro Eintrag entsteht beim Serverstart genau ein Tool:
+#   name = "Max Mustermann"  ->  Tool "send_email_to_max_mustermann"
+#
+# Bei zwei Kontakten mit gleichem Namen (z.B. zwei "Jürgen") bitte einen
+# Nachnamen/Zusatz ergänzen, damit die Tool-Namen eindeutig bleiben —
+# der Server startet sonst absichtlich gar nicht (siehe README).
+
+[[to]]
+name = "Max Mustermann"
+email = "max@example.com"
+
+[[to]]
+name = "Juergen Schmidt"
+email = "juergen.schmidt@example.com"
+
+[[to]]
+name = "Juergen Weber"
+email = "juergen.weber@example.com"

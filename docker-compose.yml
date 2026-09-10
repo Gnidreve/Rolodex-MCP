@@ -1,0 +1,15 @@
+services:
+  sendmail-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+    ports:
+      - "8080:8080"
+    # Dieser Container spricht nur HTTP (Streamable HTTP unter /mcp).
+    # Fuer HTTPS: davor einen Reverse Proxy (Traefik/Caddy/nginx) haengen,
+    # der TLS terminiert und auf Port 8080 weiterleitet.
