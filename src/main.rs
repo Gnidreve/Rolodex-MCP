@@ -1,5 +1,6 @@
 mod auth;
 mod config;
+mod logging;
 mod mcp_server;
 mod smtp;
 
@@ -13,8 +14,6 @@ use axum::Json;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use serde_json::json;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
-use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::load_contacts;
@@ -34,11 +33,13 @@ impl tracing_subscriber::fmt::time::FormatTime for BracketedUtcTime {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Ohne RUST_LOG würde tracing_subscriber defaultmäßig nur ERROR loggen —
-    // damit wären auch die info!()-Zeilen unten (Kontakte geladen, Requests
-    // via TraceLayer) unsichtbar. RUST_LOG bleibt trotzdem der Override.
+    // damit wären auch die info!()-Zeilen unten (Kontakte geladen, Requests)
+    // unsichtbar. rmcp=warn unterdrückt rmcps eigenes internes Session-/
+    // Response-Logging (Debug-Dump jeder Antwort) im Normalbetrieb - bei
+    // Bedarf zieht RUST_LOG=debug (o.ä.) das wieder hoch.
     tracing_subscriber::fmt()
         .with_timer(BracketedUtcTime)
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,rmcp=warn")))
         .init();
 
     let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "/app/config.toml".into());
@@ -89,17 +90,9 @@ async fn main() -> Result<()> {
     let mcp_route =
         post_service(service).layer(middleware::from_fn_with_state(bearer_token, auth::require_bearer_token));
 
-    // tower-http loggt Requests standardmäßig auf DEBUG - damit man sie ohne
-    // RUST_LOG=debug sieht (Methode, Pfad, Statuscode, Dauer pro Request),
-    // heben wir das hier explizit auf INFO an.
-    let request_logging = TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
-        .on_request(DefaultOnRequest::new().level(Level::INFO))
-        .on_response(DefaultOnResponse::new().level(Level::INFO));
-
     let app = axum::Router::new()
         .route("/", health.merge(mcp_route))
-        .layer(request_logging);
+        .layer(middleware::from_fn(logging::log_requests));
 
     let bind_addr: SocketAddr = std::env::var("MCP_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())
@@ -108,7 +101,7 @@ async fn main() -> Result<()> {
 
     tracing::info!(%bind_addr, "sendmail-mcp startet");
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
 
     Ok(())
 }

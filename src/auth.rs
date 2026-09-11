@@ -3,6 +3,8 @@ use axum::http::{header, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 
+use crate::logging::RejectReason;
+
 /// Prüft den `Authorization: Bearer <token>`-Header gegen MCP_BEARER_TOKEN.
 /// Wird ausschließlich vor dem POST-Handler (dem eigentlichen MCP-Traffic)
 /// eingehängt — der Healthcheck auf GET / bleibt bewusst ungeschützt, damit
@@ -18,15 +20,18 @@ pub async fn require_bearer_token(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
 
-    match received {
-        None => {
-            tracing::warn!("MCP-Request abgelehnt: Authorization-Header fehlt");
-            StatusCode::UNAUTHORIZED.into_response()
+    let reason = match received {
+        None => Some("Authorization-Header fehlt"),
+        Some(v) if v != expected_header => Some("Bearer-Token stimmt nicht überein"),
+        Some(_) => None,
+    };
+
+    match reason {
+        None => next.run(req).await,
+        Some(reason) => {
+            let mut response = StatusCode::UNAUTHORIZED.into_response();
+            response.extensions_mut().insert(RejectReason(reason));
+            response
         }
-        Some(v) if v != expected_header => {
-            tracing::warn!("MCP-Request abgelehnt: Bearer-Token stimmt nicht überein");
-            StatusCode::UNAUTHORIZED.into_response()
-        }
-        Some(_) => next.run(req).await,
     }
 }
