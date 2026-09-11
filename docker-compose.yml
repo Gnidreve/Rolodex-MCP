@@ -15,3 +15,11 @@ services:
     # Coolify-UI konfigurierten Domain/FQDN auf den hier exponierten Port.
     # Ein "ports: 8080:8080" wuerde direkt an den Host binden und mit jeder
     # anderen App auf demselben Server um Port 8080 kollidieren.
+    healthcheck:
+      # GET / ist bewusst ungeschuetzt (kein Bearer-Token noetig) - siehe
+      # src/auth.rs. Der eigentliche MCP-Traffic laeuft ueber POST /.
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
