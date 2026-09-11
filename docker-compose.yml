@@ -8,8 +8,10 @@ services:
       - .env
     volumes:
       - ./config.toml:/app/config.toml:ro
-    ports:
-      - "8080:8080"
-    # Dieser Container spricht nur HTTP (Streamable HTTP unter /mcp).
-    # Fuer HTTPS: davor einen Reverse Proxy (Traefik/Caddy/nginx) haengen,
-    # der TLS terminiert und auf Port 8080 weiterleitet.
+    expose:
+      - "8080"
+    # Kein direktes Host-Port-Mapping (kein "ports:") - Coolify routet ueber
+    # sein eigenes Traefik/Proxy-Netzwerk ("coolify") anhand der in der
+    # Coolify-UI konfigurierten Domain/FQDN auf den hier exponierten Port.
+    # Ein "ports: 8080:8080" wuerde direkt an den Host binden und mit jeder
+    # anderen App auf demselben Server um Port 8080 kollidieren.
