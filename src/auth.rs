@@ -13,16 +13,20 @@ pub async fn require_bearer_token(
     next: Next,
 ) -> Response {
     let expected_header = format!("Bearer {expected_token}");
-    let authorized = req
+    let received = req
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v == expected_header)
-        .unwrap_or(false);
+        .and_then(|v| v.to_str().ok());
 
-    if authorized {
-        next.run(req).await
-    } else {
-        StatusCode::UNAUTHORIZED.into_response()
+    match received {
+        None => {
+            tracing::warn!("MCP-Request abgelehnt: Authorization-Header fehlt");
+            StatusCode::UNAUTHORIZED.into_response()
+        }
+        Some(v) if v != expected_header => {
+            tracing::warn!("MCP-Request abgelehnt: Bearer-Token stimmt nicht überein");
+            StatusCode::UNAUTHORIZED.into_response()
+        }
+        Some(_) => next.run(req).await,
     }
 }

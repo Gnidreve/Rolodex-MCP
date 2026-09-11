@@ -13,6 +13,9 @@ use axum::Json;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use serde_json::json;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
+use tracing::Level;
+use tracing_subscriber::EnvFilter;
 
 use crate::config::load_contacts;
 use crate::mcp_server::SendMailServer;
@@ -20,7 +23,12 @@ use crate::smtp::SmtpConfig;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    // Ohne RUST_LOG würde tracing_subscriber defaultmäßig nur ERROR loggen —
+    // damit wären auch die info!()-Zeilen unten (Kontakte geladen, Requests
+    // via TraceLayer) unsichtbar. RUST_LOG bleibt trotzdem der Override.
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .init();
 
     let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "/app/config.toml".into());
     let contacts = load_contacts(&PathBuf::from(&config_path))
@@ -62,7 +70,17 @@ async fn main() -> Result<()> {
     let mcp_route =
         post_service(service).layer(middleware::from_fn_with_state(bearer_token, auth::require_bearer_token));
 
-    let app = axum::Router::new().route("/", health.merge(mcp_route));
+    // tower-http loggt Requests standardmäßig auf DEBUG - damit man sie ohne
+    // RUST_LOG=debug sieht (Methode, Pfad, Statuscode, Dauer pro Request),
+    // heben wir das hier explizit auf INFO an.
+    let request_logging = TraceLayer::new_for_http()
+        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+        .on_request(DefaultOnRequest::new().level(Level::INFO))
+        .on_response(DefaultOnResponse::new().level(Level::INFO));
+
+    let app = axum::Router::new()
+        .route("/", health.merge(mcp_route))
+        .layer(request_logging);
 
     let bind_addr: SocketAddr = std::env::var("MCP_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())

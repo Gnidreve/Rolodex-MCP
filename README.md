@@ -35,6 +35,16 @@ E-Mail-Adressen — es gibt kein generisches Tool mit freiem `to`-Feld.
 - Der Prozess selbst terminiert kein TLS — in Produktion Reverse Proxy
   davorsetzen (bei Coolify übernimmt das dessen Traefik-Instanz).
 
+## Logging
+
+Standardmäßig (ohne `RUST_LOG` gesetzt) läuft der Server auf `INFO`-Level,
+nicht auf `ERROR` (was `tracing_subscriber`'s Default wäre) — sonst wären
+weder die Startup-Logs noch die Request-Logs sichtbar. Bei jedem Request
+gegen `/` loggt eine `tower-http`-`TraceLayer` Methode, Pfad, Statuscode und
+Latenz; abgelehnte Bearer-Token loggen zusätzlich den Grund (fehlender vs.
+falscher Header — der Token-Wert selbst landet nie im Log). Für mehr Detail
+(inkl. `rmcp`s eigenem Request/Response-Tracing) `RUST_LOG=debug` setzen.
+
 ## Lokal bauen & prüfen
 
 ```bash
