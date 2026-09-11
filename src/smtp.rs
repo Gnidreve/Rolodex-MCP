@@ -71,6 +71,23 @@ impl SmtpConfig {
         })
     }
 
+    /// Baut die Verbindung einmal komplett auf (inkl. STARTTLS/TLS und AUTH,
+    /// falls konfiguriert) und wieder ab, ohne eine Mail zu verschicken.
+    /// Für den Startup-Check gedacht - Fehler hier sollen den Server gar
+    /// nicht erst starten lassen, statt erst beim ersten echten Sendeversuch
+    /// aufzufallen.
+    pub async fn test_connection(&self) -> Result<()> {
+        let transport = self.build_transport()?;
+        let connected = transport
+            .test_connection()
+            .await
+            .context("SMTP-Verbindungstest fehlgeschlagen")?;
+        if !connected {
+            bail!("SMTP-Verbindungstest fehlgeschlagen: Server hat NOOP nicht bestätigt");
+        }
+        Ok(())
+    }
+
     fn build_transport(&self) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
         let mut builder = match self.encryption {
             Encryption::StartTls => {

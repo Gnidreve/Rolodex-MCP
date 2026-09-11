@@ -52,6 +52,13 @@ async fn main() -> Result<()> {
     }
 
     let smtp = SmtpConfig::from_env().context("SMTP-Konfiguration unvollständig (siehe ENV-Variablen)")?;
+
+    tracing::info!("Prüfe SMTP-Verbindung...");
+    smtp.test_connection()
+        .await
+        .context("SMTP-Verbindung fehlgeschlagen - Server startet nicht")?;
+    tracing::info!("SMTP-Verbindung OK");
+
     let bearer_token = std::env::var("MCP_BEARER_TOKEN")
         .context("Pflicht-ENV-Variable MCP_BEARER_TOKEN ist nicht gesetzt")?;
     if !bearer_token.is_ascii() {

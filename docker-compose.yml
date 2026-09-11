@@ -1,8 +1,6 @@
 services:
   sendmail-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/gnidreve/rolodex-mcp:latest
     restart: unless-stopped
     env_file:
       - .env
