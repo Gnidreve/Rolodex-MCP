@@ -21,12 +21,23 @@ use crate::config::load_contacts;
 use crate::mcp_server::SendMailServer;
 use crate::smtp::SmtpConfig;
 
+/// `[2026-09-11 07:52:45]` statt tracing_subscribers Default
+/// (`2026-09-11T07:52:45.251010Z`) - besser lesbar in Coolifys Log-Viewer.
+struct BracketedUtcTime;
+
+impl tracing_subscriber::fmt::time::FormatTime for BracketedUtcTime {
+    fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> std::fmt::Result {
+        write!(w, "[{}]", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"))
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Ohne RUST_LOG würde tracing_subscriber defaultmäßig nur ERROR loggen —
     // damit wären auch die info!()-Zeilen unten (Kontakte geladen, Requests
     // via TraceLayer) unsichtbar. RUST_LOG bleibt trotzdem der Override.
     tracing_subscriber::fmt()
+        .with_timer(BracketedUtcTime)
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
