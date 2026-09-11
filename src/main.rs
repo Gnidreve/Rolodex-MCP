@@ -6,7 +6,7 @@ mod smtp;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use axum::middleware;
 use axum::routing::{get, post_service};
 use axum::Json;
@@ -53,6 +53,14 @@ async fn main() -> Result<()> {
     let smtp = SmtpConfig::from_env().context("SMTP-Konfiguration unvollständig (siehe ENV-Variablen)")?;
     let bearer_token = std::env::var("MCP_BEARER_TOKEN")
         .context("Pflicht-ENV-Variable MCP_BEARER_TOKEN ist nicht gesetzt")?;
+    if !bearer_token.is_ascii() {
+        // HTTP-Header-Werte müssen ASCII sein. Mit einem nicht-ASCII-Token
+        // setzen viele HTTP-Clients den Authorization-Header gar nicht erst
+        // (statt eines Fehlers) - der Server lehnt dann jeden Request mit
+        // "Header fehlt" ab, was wie ein Client-Bug aussieht, aber ein
+        // ungültiger Token war. Lieber hier hart und sofort abbrechen.
+        bail!("MCP_BEARER_TOKEN enthält nicht-ASCII-Zeichen - HTTP-Header dürfen nur ASCII sein");
+    }
 
     let server = SendMailServer::new(contacts, smtp);
 
