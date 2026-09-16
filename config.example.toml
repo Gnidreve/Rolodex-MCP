@@ -4,14 +4,20 @@
 #
 # Pro Kontakt UND konfiguriertem Kanal entsteht beim Serverstart ein eigenes
 # Tool. Welche Felder es außer "name" geben kann, bestimmen ausschließlich
-# die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md) - aktuell
-# nur "email":
+# die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md):
 #   name = "Max Mustermann"
-#   email = "max@example.com"  ->  Tool "send_to_max_mustermann_via_email"
+#   email = "max@example.com"          ->  Tool "send_to_max_mustermann_via_email"
+#   ntfy_topic = "max_mustermann_abc"  ->  Tool "send_to_max_mustermann_via_ntfy"
 #
-# Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben, sobald weitere
-# Kanäle existieren - dann entsteht pro Kanal ein eigenes Tool. Unbekannte
-# Felder (Tippfehler) lassen den Server bewusst nicht starten.
+# ntfy_topic: der Topic-Name auf dem ntfy-Server (Default: der öffentliche
+# https://ntfy.sh, überschreibbar via NTFY_SERVER). Der Topic-Name ist
+# faktisch das Secret - wer ihn kennt, kann mitlesen. Erlaubt sind nur
+# Buchstaben, Zahlen, '_' und '-'; am besten einen langen, zufälligen Suffix
+# anhängen statt nur des Namens.
+#
+# Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben - dann entsteht
+# pro Kanal ein eigenes Tool. Unbekannte Felder (Tippfehler) lassen den
+# Server bewusst nicht starten.
 #
 # Ein Kontakt braucht mindestens einen Kanal - keiner konfiguriert lässt den
 # Server bewusst nicht starten (siehe README).
@@ -31,3 +37,7 @@ email = "juergen.schmidt@example.com"
 [[to]]
 name = "Juergen Weber"
 email = "juergen.weber@example.com"
+
+[[to]]
+name = "Team Alerts"
+ntfy_topic = "rolodex_team_alerts_x7k2p9"

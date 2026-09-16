@@ -1,7 +1,7 @@
 # sendmail-mcp
 
 Ein MCP-Server, der für jeden Kontakt aus `config.toml` **und Kanal**
-(E-Mail, künftig weitere) ein eigenes Tool erzeugt
+(E-Mail, ntfy.sh, künftig weitere) ein eigenes Tool erzeugt
 (`send_to_<name>_via_<kanal>`, z.B. `send_to_max_mustermann_via_email`).
 Der Agent sieht nur Namen und Kanal über den Tool-Namen, nie die
 tatsächliche Adresse — es gibt kein generisches Tool mit freier
@@ -21,7 +21,7 @@ verbindliche Vorgehensweise.**
   Registry.
 - `config.toml` (per Volume gemountet) = **nur** Kontaktbuch. Welche Felder
   ein Kontakt außer `name` haben kann, bestimmen ausschließlich die
-  registrierten Kanäle (aktuell nur `email`):
+  registrierten Kanäle (aktuell `email` und `ntfy_topic`):
   ```toml
   [[to]]
   name = "Max Mustermann"
@@ -32,8 +32,10 @@ verbindliche Vorgehensweise.**
   Server bewusst nicht starten.
 - `.env` (per `env_file`) = Zugangsdaten pro Kanal. Für E-Mail: SMTP Host,
   Port, Encryption, optionale Credentials, Absenderadresse,
-  Absender-Anzeigename, Timeout. Siehe `.env.example`. Ein Kanal ist nur
-  Pflicht, wenn ihn mindestens ein Kontakt in `config.toml` nutzt.
+  Absender-Anzeigename, Timeout. Für ntfy: Server-URL (Default
+  `https://ntfy.sh`) + optionaler Access-Token. Siehe `.env.example`. Ein
+  Kanal ist nur Pflicht, wenn ihn mindestens ein Kontakt in `config.toml`
+  nutzt.
 - Beim Start wird die Kontaktliste geparst. Zwei Namen, die auf denselben
   Tool-Namen ("Slug") abbilden würden, führen zu einem **harten
   Startabbruch** mit klarer Fehlermeldung — kein Fuzzy-Matching, keine
