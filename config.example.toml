@@ -4,14 +4,21 @@
 #
 # Pro Kontakt UND konfiguriertem Kanal entsteht beim Serverstart ein eigenes
 # Tool. Welche Felder es außer "name" geben kann, bestimmen ausschließlich
-# die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md) - aktuell
-# nur "email":
+# die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md):
 #   name = "Max Mustermann"
-#   email = "max@example.com"  ->  Tool "send_to_max_mustermann_via_email"
+#   email = "max@example.com"          ->  Tool "send_to_max_mustermann_via_email"
+#   telegram_chat_id = "123456789"     ->  Tool "send_to_max_mustermann_via_telegram"
 #
-# Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben, sobald weitere
-# Kanäle existieren - dann entsteht pro Kanal ein eigenes Tool. Unbekannte
-# Felder (Tippfehler) lassen den Server bewusst nicht starten.
+# telegram_chat_id: die numerische Chat-ID (nicht der @username!). Für 1:1-
+# Chats mit dem Bot ist sie positiv, für Gruppen/Supergruppen negativ
+# (z.B. "-1001234567890"). Der einfachste Weg, die eigene Chat-ID
+# herauszufinden: dem Bot eine Nachricht schicken, dann
+# https://api.telegram.org/bot<TOKEN>/getUpdates aufrufen und "chat":{"id":...}
+# im JSON ablesen.
+#
+# Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben - dann entsteht
+# pro Kanal ein eigenes Tool. Unbekannte Felder (Tippfehler) lassen den
+# Server bewusst nicht starten.
 #
 # Ein Kontakt braucht mindestens einen Kanal - keiner konfiguriert lässt den
 # Server bewusst nicht starten (siehe README).
@@ -23,6 +30,7 @@
 [[to]]
 name = "Max Mustermann"
 email = "max@example.com"
+telegram_chat_id = "123456789"
 
 [[to]]
 name = "Juergen Schmidt"
@@ -30,4 +38,8 @@ email = "juergen.schmidt@example.com"
 
 [[to]]
 name = "Juergen Weber"
-email = "juergen.weber@example.com"
+telegram_chat_id = "987654321"
+
+[[to]]
+name = "Team Alerts"
+telegram_chat_id = "-1001234567890"
