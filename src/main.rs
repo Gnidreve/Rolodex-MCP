@@ -1,9 +1,10 @@
 mod auth;
+mod channels;
 mod config;
 mod logging;
 mod mcp_server;
-mod smtp;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -16,9 +17,9 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use serde_json::json;
 use tracing_subscriber::EnvFilter;
 
+use crate::channels::Channel;
 use crate::config::load_contacts;
 use crate::mcp_server::SendMailServer;
-use crate::smtp::SmtpConfig;
 
 /// `[2026-09-11 07:52:45]` statt tracing_subscribers Default
 /// (`2026-09-11T07:52:45.251010Z`) - besser lesbar in Coolifys Log-Viewer.
@@ -43,21 +44,35 @@ async fn main() -> Result<()> {
         .init();
 
     let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "/app/config.toml".into());
-    let contacts = load_contacts(&PathBuf::from(&config_path))
+    let tools = load_contacts(&PathBuf::from(&config_path))
         .with_context(|| format!("Kontaktliste konnte nicht geladen werden: {config_path}"))?;
 
-    tracing::info!(count = contacts.len(), "Kontakte geladen");
-    for c in &contacts {
-        tracing::info!(tool = %c.tool_name, name = %c.name, "Tool registriert");
+    tracing::info!(count = tools.len(), "Tools geladen");
+    for t in &tools {
+        tracing::info!(tool = %t.tool_name, name = %t.contact_name, "Tool registriert");
     }
 
-    let smtp = SmtpConfig::from_env().context("SMTP-Konfiguration unvollständig (siehe ENV-Variablen)")?;
-
-    tracing::info!("Prüfe SMTP-Verbindung...");
-    smtp.test_connection()
-        .await
-        .context("SMTP-Verbindung fehlgeschlagen - Server startet nicht")?;
-    tracing::info!("SMTP-Verbindung OK");
+    // Jeder Kanal wird nur geladen (und seine Pflicht-ENV-Variablen nur
+    // verlangt), wenn das Kontaktbuch ihn tatsächlich nutzt - eine reine
+    // Telegram-Config soll z.B. keinen SMTP_HOST brauchen und umgekehrt.
+    // Diese Schleife kennt keinen einzigen konkreten Kanal namentlich -
+    // neue Kanäle registrieren sich ausschließlich über channels::registry().
+    let mut senders: HashMap<&'static str, Box<dyn Channel>> = HashMap::new();
+    for def in channels::registry() {
+        let uses_channel = tools.iter().any(|t| t.channel_slug == def.slug);
+        if !uses_channel {
+            continue;
+        }
+        let sender = (def.from_env)()
+            .with_context(|| format!("{}-Konfiguration unvollständig (siehe ENV-Variablen)", def.display_name))?;
+        tracing::info!("Prüfe {}-Verbindung...", def.display_name);
+        sender
+            .test_connection()
+            .await
+            .with_context(|| format!("{}-Verbindung fehlgeschlagen - Server startet nicht", def.display_name))?;
+        tracing::info!("{}-Verbindung OK", def.display_name);
+        senders.insert(def.slug, sender);
+    }
 
     let bearer_token = std::env::var("MCP_BEARER_TOKEN")
         .context("Pflicht-ENV-Variable MCP_BEARER_TOKEN ist nicht gesetzt")?;
@@ -70,7 +85,7 @@ async fn main() -> Result<()> {
         bail!("MCP_BEARER_TOKEN enthält nicht-ASCII-Zeichen - HTTP-Header dürfen nur ASCII sein");
     }
 
-    let server = SendMailServer::new(contacts, smtp);
+    let server = SendMailServer::new(tools, senders);
 
     // Streamable HTTP ist der von rmcp empfohlene HTTP-Transport (ersetzt das
     // alte zweigeteilte HTTP+SSE-Schema). Der Prozess selbst spricht nur
