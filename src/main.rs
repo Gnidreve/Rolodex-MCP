@@ -1,25 +1,13 @@
-mod auth;
-mod channels;
-mod config;
-mod logging;
-mod mcp_server;
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
-use axum::middleware;
-use axum::routing::{get, post_service};
-use axum::Json;
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
-use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
-use serde_json::json;
 use tracing_subscriber::EnvFilter;
 
-use crate::channels::Channel;
-use crate::config::load_contacts;
-use crate::mcp_server::SendMailServer;
+use sendmail_mcp::channels::{self, Channel};
+use sendmail_mcp::config::load_contacts;
+use sendmail_mcp::build_router;
 
 /// `[2026-09-11 07:52:45]` statt tracing_subscribers Default
 /// (`2026-09-11T07:52:45.251010Z`) - besser lesbar in Coolifys Log-Viewer.
@@ -85,36 +73,7 @@ async fn main() -> Result<()> {
         bail!("MCP_BEARER_TOKEN enthält nicht-ASCII-Zeichen - HTTP-Header dürfen nur ASCII sein");
     }
 
-    let server = SendMailServer::new(tools, senders);
-
-    // Streamable HTTP ist der von rmcp empfohlene HTTP-Transport (ersetzt das
-    // alte zweigeteilte HTTP+SSE-Schema). Der Prozess selbst spricht nur
-    // HTTP — TLS/HTTPS wird über einen vorgeschalteten Reverse Proxy
-    // (Traefik/Caddy/nginx) terminiert, wie bei Docker-Compose-Deployments üblich.
-    //
-    // stateful_mode: false, weil wir GET auf derselben Route als Healthcheck
-    // brauchen. Bei stateful_mode: true reserviert rmcp GET für die
-    // SSE-Session-Resumption; da wir GET selbst bedienen, würde das nie
-    // greifen und rmcp bräuchte ohnehin ein Session-Handling, das dieser
-    // einfache, zustandslose Sendmail-Server nicht braucht.
-    let service = StreamableHttpService::new(
-        move || Ok(server.clone()),
-        LocalSessionManager::default().into(),
-        StreamableHttpServerConfig {
-            stateful_mode: false,
-            ..Default::default()
-        },
-    );
-
-    // Alles auf "/": GET liefert einen ungeschützten Healthcheck, POST ist
-    // der eigentliche MCP-Endpunkt und verlangt den Bearer-Token.
-    let health = get(|| async { Json(json!({ "status": "ok" })) });
-    let mcp_route =
-        post_service(service).layer(middleware::from_fn_with_state(bearer_token, auth::require_bearer_token));
-
-    let app = axum::Router::new()
-        .route("/", health.merge(mcp_route))
-        .layer(middleware::from_fn(logging::log_requests));
+    let app = build_router(tools, senders, bearer_token);
 
     let bind_addr: SocketAddr = std::env::var("MCP_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())

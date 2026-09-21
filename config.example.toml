@@ -7,8 +7,23 @@
 # die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md):
 #   name = "Max Mustermann"
 #   email = "max@example.com"          ->  Tool "send_to_max_mustermann_via_email"
+#   telegram_chat_id = "123456789"     ->  Tool "send_to_max_mustermann_via_telegram"
+#   ntfy_topic = "max_mustermann_abc"  ->  Tool "send_to_max_mustermann_via_ntfy"
 #   discord_webhook_url = "https://discord.com/api/webhooks/..."
 #                                       ->  Tool "send_to_max_mustermann_via_discord"
+#
+# telegram_chat_id: die numerische Chat-ID (nicht der @username!). Für 1:1-
+# Chats mit dem Bot ist sie positiv, für Gruppen/Supergruppen negativ
+# (z.B. "-1001234567890"). Der einfachste Weg, die eigene Chat-ID
+# herauszufinden: dem Bot eine Nachricht schicken, dann
+# https://api.telegram.org/bot<TOKEN>/getUpdates aufrufen und "chat":{"id":...}
+# im JSON ablesen.
+#
+# ntfy_topic: der Topic-Name auf dem ntfy-Server (Default: der öffentliche
+# https://ntfy.sh, überschreibbar via NTFY_SERVER). Der Topic-Name ist
+# faktisch das Secret - wer ihn kennt, kann mitlesen. Erlaubt sind nur
+# Buchstaben, Zahlen, '_' und '-'; am besten einen langen, zufälligen Suffix
+# anhängen statt nur des Namens.
 #
 # discord_webhook_url: die vollständige Webhook-URL eines Discord-Channels
 # (Server-Einstellungen -> Integrationen -> Webhooks -> "Neuer Webhook").
@@ -32,6 +47,7 @@
 [[to]]
 name = "Max Mustermann"
 email = "max@example.com"
+telegram_chat_id = "123456789"
 discord_webhook_url = "https://discord.com/api/webhooks/123456789012345678/abcDEF-example-token"
 
 [[to]]
@@ -39,5 +55,10 @@ name = "Juergen Schmidt"
 email = "juergen.schmidt@example.com"
 
 [[to]]
+name = "Juergen Weber"
+telegram_chat_id = "987654321"
+
+[[to]]
 name = "Team Alerts"
+ntfy_topic = "rolodex_team_alerts_x7k2p9"
 discord_webhook_url = "https://discord.com/api/webhooks/987654321098765432/anotherExampleToken"
