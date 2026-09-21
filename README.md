@@ -101,10 +101,3 @@ Der Server lauscht dann auf `http://<host>:8080/` (Streamable HTTP, MCP via
 POST mit Bearer-Token; GET liefert den Healthcheck). Ein eingebauter
 Docker-Healthcheck (`curl -f http://localhost:8080/`) ist in
 `docker-compose.yml` hinterlegt.
-
-## Erweiterungsideen (bewusst nicht gebaut, minimal-invasiv gehalten)
-
-- Hot-Reload der `config.toml` ohne Neustart.
-- Mehrere Empfänger pro Aufruf / CC.
-- Direkte TLS-Terminierung im Rust-Prozess statt Reverse Proxy.
-- `SMTP_ACCEPT_INVALID_CERTS` für selbstsignierte interne Mailserver.
