@@ -11,6 +11,8 @@
 #   ntfy_topic = "max_mustermann_abc"  ->  Tool "send_to_max_mustermann_via_ntfy"
 #   discord_webhook_url = "https://discord.com/api/webhooks/..."
 #                                       ->  Tool "send_to_max_mustermann_via_discord"
+#   slack_webhook_url = "https://hooks.slack.com/services/..."
+#                                       ->  Tool "send_to_max_mustermann_via_slack"
 #
 # telegram_chat_id: die numerische Chat-ID (nicht der @username!). Für 1:1-
 # Chats mit dem Bot ist sie positiv, für Gruppen/Supergruppen negativ
@@ -33,6 +35,14 @@
 # an eine einzelne Person - für 1:1-DMs bräuchte es stattdessen einen echten
 # Bot.
 #
+# slack_webhook_url: die vollständige Incoming-Webhook-URL eines Slack-
+# Channels (Slack-App -> "Incoming Webhooks" -> "Add New Webhook to
+# Workspace"). Wie bei Discord steckt das Secret hier in der URL selbst
+# (kein ENV-Wert nötig) - wer die URL kennt, kann in den Channel posten, also
+# wie ein Passwort behandeln. Slack-Webhooks posten in einen Channel, nicht
+# an eine einzelne Person - für 1:1-DMs bräuchte es stattdessen einen echten
+# Bot mit `chat.postMessage`.
+#
 # Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben - dann entsteht
 # pro Kanal ein eigenes Tool. Unbekannte Felder (Tippfehler) lassen den
 # Server bewusst nicht starten.
@@ -49,6 +59,7 @@ name = "Max Mustermann"
 email = "max@example.com"
 telegram_chat_id = "123456789"
 discord_webhook_url = "https://discord.com/api/webhooks/123456789012345678/abcDEF-example-token"
+slack_webhook_url = "https://hooks.slack.com/services/REPLACE_WITH_TEAM_ID/REPLACE_WITH_BOT_ID/REPLACE_WITH_WEBHOOK_TOKEN"
 
 [[to]]
 name = "Juergen Schmidt"
@@ -62,3 +73,4 @@ telegram_chat_id = "987654321"
 name = "Team Alerts"
 ntfy_topic = "rolodex_team_alerts_x7k2p9"
 discord_webhook_url = "https://discord.com/api/webhooks/987654321098765432/anotherExampleToken"
+slack_webhook_url = "https://hooks.slack.com/services/REPLACE_WITH_TEAM_ID/REPLACE_WITH_OTHER_BOT_ID/REPLACE_WITH_OTHER_TOKEN"

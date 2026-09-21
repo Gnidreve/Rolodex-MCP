@@ -4,6 +4,7 @@ use async_trait::async_trait;
 mod discord;
 mod email;
 mod ntfy;
+mod slack;
 mod telegram;
 
 /// Ein Kanal-Plugin kapselt alles Kanal-Spezifische: wie ENV-Konfiguration
@@ -53,5 +54,6 @@ pub fn registry() -> Vec<ChannelDef> {
         ntfy::channel_def(),
         telegram::channel_def(),
         discord::channel_def(),
+        slack::channel_def(),
     ]
 }
