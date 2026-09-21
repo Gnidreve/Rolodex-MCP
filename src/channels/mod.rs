@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 mod email;
+mod slack;
 
 /// Ein Kanal-Plugin kapselt alles Kanal-Spezifische: wie ENV-Konfiguration
 /// geladen/geprüft wird und wie tatsächlich verschickt wird. `config.rs`,
@@ -45,5 +46,5 @@ pub struct ChannelDef {
 /// Alle bekannten Kanäle. Neuer Kanal = eigene Datei (auf eigener Branch,
 /// eigenem PR) + genau eine neue Zeile hier.
 pub fn registry() -> Vec<ChannelDef> {
-    vec![email::channel_def()]
+    vec![email::channel_def(), slack::channel_def()]
 }

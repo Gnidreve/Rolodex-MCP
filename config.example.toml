@@ -4,14 +4,23 @@
 #
 # Pro Kontakt UND konfiguriertem Kanal entsteht beim Serverstart ein eigenes
 # Tool. Welche Felder es außer "name" geben kann, bestimmen ausschließlich
-# die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md) - aktuell
-# nur "email":
+# die registrierten Kanäle in src/channels/ (siehe CONTRIBUTING.md):
 #   name = "Max Mustermann"
-#   email = "max@example.com"  ->  Tool "send_to_max_mustermann_via_email"
+#   email = "max@example.com"          ->  Tool "send_to_max_mustermann_via_email"
+#   slack_webhook_url = "https://hooks.slack.com/services/..."
+#                                       ->  Tool "send_to_max_mustermann_via_slack"
 #
-# Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben, sobald weitere
-# Kanäle existieren - dann entsteht pro Kanal ein eigenes Tool. Unbekannte
-# Felder (Tippfehler) lassen den Server bewusst nicht starten.
+# slack_webhook_url: die vollständige Incoming-Webhook-URL eines Slack-
+# Channels (Slack-App -> "Incoming Webhooks" -> "Add New Webhook to
+# Workspace"). Anders als bei den anderen Kanälen steckt das Secret hier in
+# der URL selbst (kein ENV-Wert nötig) - wer die URL kennt, kann in den
+# Channel posten, also wie ein Passwort behandeln. Slack-Webhooks posten in
+# einen Channel, nicht an eine einzelne Person - für 1:1-DMs bräuchte es
+# stattdessen einen echten Bot mit `chat.postMessage`.
+#
+# Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben - dann entsteht
+# pro Kanal ein eigenes Tool. Unbekannte Felder (Tippfehler) lassen den
+# Server bewusst nicht starten.
 #
 # Ein Kontakt braucht mindestens einen Kanal - keiner konfiguriert lässt den
 # Server bewusst nicht starten (siehe README).
@@ -23,11 +32,12 @@
 [[to]]
 name = "Max Mustermann"
 email = "max@example.com"
+slack_webhook_url = "https://hooks.slack.com/services/REPLACE_WITH_TEAM_ID/REPLACE_WITH_BOT_ID/REPLACE_WITH_WEBHOOK_TOKEN"
 
 [[to]]
 name = "Juergen Schmidt"
 email = "juergen.schmidt@example.com"
 
 [[to]]
-name = "Juergen Weber"
-email = "juergen.weber@example.com"
+name = "Team Alerts"
+slack_webhook_url = "https://hooks.slack.com/services/REPLACE_WITH_TEAM_ID/REPLACE_WITH_OTHER_BOT_ID/REPLACE_WITH_OTHER_TOKEN"
