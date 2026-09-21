@@ -1,5 +1,9 @@
 # Idee: Weitere Outbound-Kanäle neben E-Mail
 
+> **Update:** Discord (Incoming Webhook) ist inzwischen umgesetzt (Branch
+> `discord`, `src/channels/discord.rs` + `discord_webhook_url` in
+> `config.toml`). Der Rest dieses Dokuments ist weiterhin offen.
+
 Status: Brainstorming/Recherche, nicht implementiert. Ziel: das bestehende
 Prinzip von `sendmail-mcp` (pro Kontakt ein fest konfiguriertes Tool, reiner
 Outbound-Versand, kein generisches "sende an beliebige Adresse"-Tool) auf

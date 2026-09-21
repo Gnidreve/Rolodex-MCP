@@ -1,7 +1,7 @@
 # sendmail-mcp
 
 Ein MCP-Server, der für jeden Kontakt aus `config.toml` **und Kanal**
-(E-Mail, künftig weitere) ein eigenes Tool erzeugt
+(E-Mail, Discord, künftig weitere) ein eigenes Tool erzeugt
 (`send_to_<name>_via_<kanal>`, z.B. `send_to_max_mustermann_via_email`).
 Der Agent sieht nur Namen und Kanal über den Tool-Namen, nie die
 tatsächliche Adresse — es gibt kein generisches Tool mit freier
@@ -21,11 +21,12 @@ verbindliche Vorgehensweise.**
   Registry.
 - `config.toml` (per Volume gemountet) = **nur** Kontaktbuch. Welche Felder
   ein Kontakt außer `name` haben kann, bestimmen ausschließlich die
-  registrierten Kanäle (aktuell nur `email`):
+  registrierten Kanäle (aktuell `email` und `discord_webhook_url`):
   ```toml
   [[to]]
   name = "Max Mustermann"
   email = "max@example.com"
+  discord_webhook_url = "https://discord.com/api/webhooks/..."
   ```
   Ein Kontakt kann mehrere Kanal-Felder gleichzeitig haben — dann entsteht
   pro Kanal ein eigenes Tool. Unbekannte Felder (Tippfehler) lassen den
@@ -33,7 +34,9 @@ verbindliche Vorgehensweise.**
 - `.env` (per `env_file`) = Zugangsdaten pro Kanal. Für E-Mail: SMTP Host,
   Port, Encryption, optionale Credentials, Absenderadresse,
   Absender-Anzeigename, Timeout. Siehe `.env.example`. Ein Kanal ist nur
-  Pflicht, wenn ihn mindestens ein Kontakt in `config.toml` nutzt.
+  Pflicht, wenn ihn mindestens ein Kontakt in `config.toml` nutzt. Discord ist
+  eine Ausnahme: die Webhook-URL ist selbst das Secret und steckt komplett in
+  `config.toml` (siehe `config.example.toml`), es gibt dafür keine ENV-Variable.
 - Beim Start wird die Kontaktliste geparst. Zwei Namen, die auf denselben
   Tool-Namen ("Slug") abbilden würden, führen zu einem **harten
   Startabbruch** mit klarer Fehlermeldung — kein Fuzzy-Matching, keine
@@ -42,7 +45,10 @@ verbindliche Vorgehensweise.**
 - Jeder benötigte Kanal wird beim Start einmal real geprüft
   (`Channel::test_connection`) — schlägt das fehl, startet der Server gar
   nicht erst, mit der echten Fehlerursache im Log, statt erst beim ersten
-  Sendeversuch aufzufallen.
+  Sendeversuch aufzufallen. Ausnahme: Discord hat kein gemeinsames Secret zum
+  Prüfen (jeder Kontakt hat seine eigene Webhook-URL, siehe unten) — der
+  Check ist dort ein bewusstes No-Op, eine kaputte Webhook-URL fällt erst
+  beim ersten Sendeversuch an genau diesen Kontakt auf.
 - Jedes Tool erwartet `subject` (string) und `body` (string, Klartext).
 - Transport: Streamable HTTP direkt auf `/` (nicht `/mcp`):
   - `GET /` — ungeschützter Healthcheck, liefert `{"status":"ok"}`. Kein
