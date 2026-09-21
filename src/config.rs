@@ -179,22 +179,21 @@ mod tests {
         assert_eq!(slugify("  Anna-Lena  "), "anna_lena");
     }
 
-    fn write_config(contents: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("sendmail-mcp-test-{}-{}", std::process::id(), rand_suffix()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("config.toml");
+    /// Gibt den `TempDir`-Guard mit zurück, statt ihn zu droppen - sonst
+    /// würde `tempfile` das Verzeichnis (per RAII, siehe `Drop`-Impl) schon
+    /// vor dem eigentlichen `load_contacts()`-Aufruf wieder löschen. Der
+    /// Aufrufer bindet ihn als `let (_dir, path) = write_config(...)`, damit
+    /// er bis zum Ende des Testfalls am Leben bleibt.
+    fn write_config(contents: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
         std::fs::write(&path, contents).unwrap();
-        path
-    }
-
-    fn rand_suffix() -> u64 {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64
+        (dir, path)
     }
 
     #[test]
     fn detects_slug_collision() {
-        let path = write_config(
+        let (_dir, path) = write_config(
             r#"
 [[to]]
 name = "Jürgen Schmidt"
@@ -211,7 +210,7 @@ email = "j2@example.com"
 
     #[test]
     fn contact_needs_at_least_one_channel() {
-        let path = write_config(
+        let (_dir, path) = write_config(
             r#"
 [[to]]
 name = "Ohne Kanal"
@@ -223,7 +222,7 @@ name = "Ohne Kanal"
 
     #[test]
     fn rejects_unknown_field() {
-        let path = write_config(
+        let (_dir, path) = write_config(
             r#"
 [[to]]
 name = "Max Mustermann"
@@ -236,7 +235,7 @@ emial = "max@example.com"
 
     #[test]
     fn rejects_invalid_email() {
-        let path = write_config(
+        let (_dir, path) = write_config(
             r#"
 [[to]]
 name = "Max Mustermann"
@@ -249,7 +248,7 @@ email = "nicht-valide"
 
     #[test]
     fn generates_name_first_tool_name_and_title() {
-        let path = write_config(
+        let (_dir, path) = write_config(
             r#"
 [[to]]
 name = "Max Mustermann"

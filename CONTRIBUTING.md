@@ -15,8 +15,8 @@ eigenen Git-Branch** entwickelt, benannt nach dem Kanal (z.B. `telegram`,
 3. Genau **eine Zeile** in `src/channels/mod.rs::registry()` ergänzen, um
    den neuen Kanal zu registrieren. Das ist die einzige Stelle außerhalb der
    neuen Datei, die angefasst werden darf.
-4. `main.rs`, `config.rs` und `mcp_server.rs` **nicht anfassen** — die
-   kennen nur den `Channel`-Trait und `ChannelDef`, nie ein konkretes
+4. `main.rs`, `lib.rs`, `config.rs` und `mcp_server.rs` **nicht anfassen** —
+   die kennen nur den `Channel`-Trait und `ChannelDef`, nie ein konkretes
    Backend. Wenn ein Kanal das nicht hergibt (z.B. weil er fundamental
    andere Metadaten braucht), ist das ein Zeichen, dass der Wrapper selbst
    erweitert werden muss — das läuft dann als eigene Diskussion, nicht
@@ -28,11 +28,11 @@ eigenen Git-Branch** entwickelt, benannt nach dem Kanal (z.B. `telegram`,
 ## Ausnahme: Änderungen am Wrapper selbst
 
 Der `Channel`-Trait, `ChannelDef` und die generische Logik in `main.rs`/
-`config.rs`/`mcp_server.rs` sind die Ausnahme von der Branch-pro-Kanal-Regel
-und werden **direkt auf `main`** entwickelt und gepusht. Das sollte nach der
-initialen Einführung dieser Architektur nur noch selten nötig sein — wenn
-doch, sind das architektonische Entscheidungen, die separat vom eigentlichen
-Kanal-Feature behandelt werden.
+`lib.rs`/`config.rs`/`mcp_server.rs` sind die Ausnahme von der
+Branch-pro-Kanal-Regel und werden **direkt auf `main`** entwickelt und
+gepusht. Das sollte nach der initialen Einführung dieser Architektur nur
+noch selten nötig sein — wenn doch, sind das architektonische
+Entscheidungen, die separat vom eigentlichen Kanal-Feature behandelt werden.
 
 ## Warum
 

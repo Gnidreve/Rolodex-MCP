@@ -7,6 +7,9 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+      - ".agents/**"
+      - ".claude/**"
+      - "skills-lock.json"
 
 concurrency:
   group: docker-${{ github.ref }}
