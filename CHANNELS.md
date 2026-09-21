@@ -5,13 +5,13 @@ unten und die jeweiligen PRs) — E-Mail ist der einzige bereits auf `main`
 gemergte Kanal, die anderen vier warten als offene Pull Requests auf den
 Merge (siehe [CONTRIBUTING.md](CONTRIBUTING.md) für die Branch-pro-Kanal-
 Vorgehensweise). Der Rest dieses Dokuments ist weiterhin offen/Brainstorming.
-Ziel: das bestehende Prinzip von `sendmail-mcp` (pro Kontakt ein fest
+Ziel: das bestehende Prinzip von `Rolodex MCP` (pro Kontakt ein fest
 konfiguriertes Tool, reiner Outbound-Versand, kein generisches "sende an
 beliebige Adresse"-Tool) auf weitere Kanäle ausweiten, nicht nur E-Mail.
 
 ## Warum das architektonisch passt
 
-Das Kernprinzip von `sendmail-mcp` ist kanal-agnostisch:
+Das Kernprinzip von `Rolodex MCP` ist kanal-agnostisch:
 
 - Kontaktbuch (`config.toml`) definiert **wer** erreichbar ist.
 - Für jeden Kontakt entsteht **ein eigenes Tool** (`send_<kanal>_to_<name>`).
