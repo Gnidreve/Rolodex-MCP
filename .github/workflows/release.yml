@@ -22,23 +22,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read Cargo.toml version, tag it if it's new
+      - name: Read Cargo.toml version, tag + release it if it's new
         id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version=$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)".*/\1/')
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-          if git rev-parse "v$version" >/dev/null 2>&1; then
+          if gh release view "v$version" >/dev/null 2>&1; then
             echo "is_new=false" >> "$GITHUB_OUTPUT"
-            echo "v$version already exists, skipping release"
+            echo "Release v$version already exists, skipping"
             exit 0
           fi
 
           echo "is_new=true" >> "$GITHUB_OUTPUT"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$version" -m "Release v$version"
-          git push origin "v$version"
+
+          if ! git rev-parse "v$version" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "v$version" -m "Release v$version"
+            git push origin "v$version"
+          fi
+
+          # taiki-e/upload-rust-binary-action uploads assets to an existing
+          # GitHub Release - a bare git tag isn't enough, it needs the
+          # Release object itself to already exist.
+          gh release create "v$version" --title "v$version" --generate-notes
 
   upload-assets:
     needs: detect-version
