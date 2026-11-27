@@ -4,12 +4,13 @@
 [![Release](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/release.yml)
 [![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 
-An MCP server that generates its own tool for every contact in
-`config.toml` **and channel** (Email, ntfy.sh, Telegram, Discord, Slack)
-(`send_to_<name>_via_<channel>`). The agent only ever sees a name and a
-channel via the tool name, never the actual address — there is no generic
-tool with a free-form address or channel choice. Why that is, see
-[docs/security-model.md](docs/security-model.md).
+An MCP server that generates exactly two tools per configured channel
+(Email, ntfy.sh, Telegram, Discord, Slack) from `config.toml`:
+`send_via_<channel>` and `list_<channel>_contacts`. The agent addresses a
+contact by a slug, validated server-side against the live contact book on
+every call — there is no generic tool with a free-form address or channel
+choice, and an unknown contact is always rejected, never used as a literal
+address. Why that is, see [docs/security-model.md](docs/security-model.md).
 
 New channels are developed on their own git branches and merged via pull
 request — see [CONTRIBUTING.md](CONTRIBUTING.md). Planned/implemented
@@ -17,8 +18,9 @@ channels: [CHANNELS.md](CHANNELS.md).
 
 ## Documentation
 
-- [docs/security-model.md](docs/security-model.md) — why there is no
-  address parameter, and what that buys against prompt injection.
+- [docs/security-model.md](docs/security-model.md) — why `contact` is a
+  server-validated slug, never a raw address, and what that buys against
+  prompt injection.
 - [docs/architecture.md](docs/architecture.md) — plugin system, lib/bin
   split, request lifecycle.
 - [docs/deployment.md](docs/deployment.md) — self-hosting with

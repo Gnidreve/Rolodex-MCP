@@ -28,30 +28,35 @@ struct ToEntry {
     channels: HashMap<String, String>,
 }
 
-/// A contact can have several channels at once (e.g. email AND Telegram).
-/// Each contact AND channel gets its own, concrete tool - no generic
-/// "send message", because a contact would otherwise be ambiguously
-/// addressable via more than one channel, without the agent being able to
-/// see that in the tool name.
+/// A contact can have several channels at once (e.g. email AND Telegram) -
+/// each combination becomes its own entry here. There is exactly one MCP
+/// tool per channel (not per contact): the contact is addressed via the
+/// `contact_slug` as a parameter value, validated against this list at
+/// call time - never a raw address/chat ID/webhook URL.
 #[derive(Debug, Clone)]
-pub struct ChannelTool {
+pub struct ContactEntry {
     pub contact_name: String,
+    /// Stable identifier for this contact, used as the `contact` parameter
+    /// value in `send_via_<channel>` and returned by `list_<channel>_contacts`.
+    pub contact_slug: String,
     /// Key into the sender map that main.rs builds, e.g. "telegram".
     pub channel_slug: &'static str,
     pub channel_display_name: &'static str,
     /// Email address, Telegram chat ID, etc., depending on the channel.
     pub address: String,
-    /// E.g. "send_to_max_mustermann_via_telegram" - the MCP tool name.
-    /// Name first, channel as suffix: that way a contact's tools stay next
-    /// to each other even in clients that sort alphabetically, instead of
-    /// falling apart into separate blocks by channel.
-    pub tool_name: String,
-    /// E.g. "Max Mustermann — Telegram" - for clients that display MCP's
-    /// `title` field in addition to `name`.
-    pub title: String,
 }
 
-pub fn load_contacts(path: &Path) -> Result<Vec<ChannelTool>> {
+/// Groups entries by channel - the shape the MCP server needs, since tools
+/// exist per channel, not per contact.
+pub fn group_by_channel(entries: Vec<ContactEntry>) -> HashMap<&'static str, Vec<ContactEntry>> {
+    let mut grouped: HashMap<&'static str, Vec<ContactEntry>> = HashMap::new();
+    for entry in entries {
+        grouped.entry(entry.channel_slug).or_default().push(entry);
+    }
+    grouped
+}
+
+pub fn load_contacts(path: &Path) -> Result<Vec<ContactEntry>> {
     let raw = fs::read_to_string(path)
         .with_context(|| format!("could not read config: {}", path.display()))?;
     let parsed: RawConfig = toml::from_str(&raw)
@@ -110,13 +115,12 @@ pub fn load_contacts(path: &Path) -> Result<Vec<ChannelTool>> {
             (def.validate)(&address)
                 .with_context(|| format!("contact '{name}' has an invalid value for '{}'", def.config_key))?;
 
-            tools.push(ChannelTool {
+            tools.push(ContactEntry {
                 contact_name: name.clone(),
+                contact_slug: slug.clone(),
                 channel_slug: def.slug,
                 channel_display_name: def.display_name,
                 address,
-                tool_name: format!("send_to_{slug}_via_{}", def.slug),
-                title: format!("{name} — {}", def.display_name),
             });
         }
 
@@ -250,7 +254,7 @@ email = "not-valid"
     }
 
     #[test]
-    fn generates_name_first_tool_name_and_title() {
+    fn generates_contact_slug_and_channel_metadata() {
         let (_dir, path) = write_config(
             r#"
 [[to]]
@@ -260,7 +264,26 @@ email = "max@example.com"
         );
         let tools = load_contacts(&path).unwrap();
         assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].tool_name, "send_to_max_mustermann_via_email");
-        assert_eq!(tools[0].title, "Max Mustermann — Email");
+        assert_eq!(tools[0].contact_slug, "max_mustermann");
+        assert_eq!(tools[0].channel_slug, "email");
+        assert_eq!(tools[0].channel_display_name, "Email");
+    }
+
+    #[test]
+    fn group_by_channel_groups_multiple_contacts_per_channel() {
+        let (_dir, path) = write_config(
+            r#"
+[[to]]
+name = "Max Mustermann"
+email = "max@example.com"
+
+[[to]]
+name = "Erika Musterfrau"
+email = "erika@example.com"
+"#,
+        );
+        let tools = load_contacts(&path).unwrap();
+        let grouped = group_by_channel(tools);
+        assert_eq!(grouped.get("email").map(Vec::len), Some(2));
     }
 }

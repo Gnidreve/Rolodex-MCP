@@ -35,7 +35,8 @@ pub trait Channel: Send + Sync {
 pub struct ChannelDef {
     /// Field name in config.toml, e.g. "email" or "telegram_chat_id".
     pub config_key: &'static str,
-    /// Segment in the tool name, e.g. "email" -> "send_to_<name>_via_email".
+    /// Segment in the tool name, e.g. "email" -> "send_via_email" /
+    /// "list_email_contacts".
     pub slug: &'static str,
     /// For the human-readable tool title/description, e.g. "Email".
     pub display_name: &'static str,

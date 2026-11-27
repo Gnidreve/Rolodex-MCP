@@ -12,8 +12,12 @@ address" tool) to further channels, not just email.
 The core principle of `Rolodex MCP` is channel-agnostic:
 
 - The contact book (`config.toml`) defines **who** is reachable.
-- Each contact gets **its own tool** (`send_<channel>_to_<name>`).
-- The agent never sees a raw address/ID, only the tool name.
+- Each channel gets **its own tool pair** (`send_via_<channel>` +
+  `list_<channel>_contacts`), and `send_via_<channel>`'s `contact`
+  parameter is a slug, resolved server-side against the live contact
+  book.
+- The agent never sees a raw address/ID — only slugs, and only ones the
+  server already recognizes.
 - Credentials (SMTP credentials so far) come separately from ENV, never
   from the contact book.
 

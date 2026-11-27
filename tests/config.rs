@@ -38,7 +38,7 @@ email = "max@example.com"
 }
 
 #[test]
-fn multiple_contacts_with_one_channel_each_produce_distinct_tools() {
+fn multiple_contacts_with_one_channel_each_produce_distinct_entries() {
     let (_dir, path) = write_config(
         r#"
 [[to]]
@@ -52,9 +52,9 @@ email = "erika@example.com"
     );
     let tools = load_contacts(&path).expect("valid config");
     assert_eq!(tools.len(), 2);
-    let names: Vec<&str> = tools.iter().map(|t| t.tool_name.as_str()).collect();
-    assert!(names.contains(&"send_to_max_mustermann_via_email"));
-    assert!(names.contains(&"send_to_erika_musterfrau_via_email"));
+    let slugs: Vec<&str> = tools.iter().map(|t| t.contact_slug.as_str()).collect();
+    assert!(slugs.contains(&"max_mustermann"));
+    assert!(slugs.contains(&"erika_musterfrau"));
 }
 
 #[test]

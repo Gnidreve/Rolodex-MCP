@@ -65,6 +65,17 @@ Coolify:
   healthcheck or breaks rmcp's session assumptions — neither shows up as
   a clear error, just as silent misbehavior.
 
+## Editing the contact book without a restart
+
+`config.toml` is polled every few seconds and reloaded automatically (see
+`src/reload.rs`) — adding, renaming, or removing a `[[to]]` entry takes
+effect without restarting the container. Using a channel for the first
+time that wasn't configured before still needs a restart, since that
+channel's ENV credentials are only loaded and connection-tested once at
+startup. A broken edit (invalid TOML, an unknown field, a bad address) is
+logged as a warning and otherwise ignored — the server keeps serving the
+last known-good contact book instead of crashing on a typo.
+
 ## Logging
 
 By default (without `RUST_LOG`), the server runs at `INFO`, not `ERROR`

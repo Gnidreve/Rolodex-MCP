@@ -2,17 +2,27 @@
 # Only names + addresses. No credentials here (those come from .env, see
 # .env.example).
 #
-# Each contact AND configured channel gets its own tool at server start.
-# Which fields can exist besides "name" is determined exclusively by the
-# registered channels in src/channels/ (see CONTRIBUTING.md):
+# Each configured channel gets exactly one tool pair at server start
+# (send_via_<channel> + list_<channel>_contacts) - not one per contact.
+# A contact becomes reachable through that channel's tool via its slug
+# (derived from "name", e.g. "John Smith" -> "john_smith"), passed as the
+# "contact" parameter. Which fields can exist besides "name" is determined
+# exclusively by the registered channels in src/channels/ (see
+# CONTRIBUTING.md):
 #   name = "John Smith"
-#   email = "john@example.com"          ->  Tool "send_to_john_smith_via_email"
-#   telegram_chat_id = "123456789"      ->  Tool "send_to_john_smith_via_telegram"
-#   ntfy_topic = "john_smith_abc"       ->  Tool "send_to_john_smith_via_ntfy"
+#   email = "john@example.com"          ->  reachable via send_via_email
+#   telegram_chat_id = "123456789"      ->  reachable via send_via_telegram
+#   ntfy_topic = "john_smith_abc"       ->  reachable via send_via_ntfy
 #   discord_webhook_url = "https://discord.com/api/webhooks/..."
-#                                        ->  Tool "send_to_john_smith_via_discord"
+#                                        ->  reachable via send_via_discord
 #   slack_webhook_url = "https://hooks.slack.com/services/..."
-#                                        ->  Tool "send_to_john_smith_via_slack"
+#                                        ->  reachable via send_via_slack
+#
+# Changes to this file are picked up live, without a server restart -
+# adding, renaming or removing a [[to]] entry (or a channel field on one)
+# takes effect within a few seconds. Using a channel for the first time
+# that wasn't configured before still needs a restart (its credentials in
+# .env need to be loaded and connection-tested once).
 #
 # telegram_chat_id: the numeric chat ID (not the @username!). It's positive
 # for 1:1 chats with the bot, negative for groups/supergroups (e.g.
@@ -48,7 +58,7 @@
 # prevents the server from starting (see README).
 #
 # For two contacts with the same name (e.g. two "John"s), please add a
-# last name/suffix to keep the tool names unique — the server otherwise
+# last name/suffix to keep their slugs unique — the server otherwise
 # deliberately refuses to start at all (see README).
 
 [[to]]

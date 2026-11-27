@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -18,7 +19,8 @@ use http_body_util::BodyExt;
 use tower::ServiceExt;
 
 use sendmail_mcp::channels::Channel;
-use sendmail_mcp::config::ChannelTool;
+use sendmail_mcp::config::ContactEntry;
+use sendmail_mcp::mcp_server::ActiveChannel;
 
 struct MockChannel;
 
@@ -34,17 +36,24 @@ impl Channel for MockChannel {
 }
 
 fn test_app() -> axum::Router {
-    let tools = vec![ChannelTool {
-        contact_name: "Test Contact".to_string(),
-        channel_slug: "mock",
-        channel_display_name: "Mock",
-        address: "irrelevant-for-the-mock".to_string(),
-        tool_name: "send_to_test_contact_via_mock".to_string(),
-        title: "Test Contact — Mock".to_string(),
+    let active_channels = vec![ActiveChannel {
+        slug: "mock",
+        display_name: "Mock",
     }];
+    let mut contacts: HashMap<&'static str, Vec<ContactEntry>> = HashMap::new();
+    contacts.insert(
+        "mock",
+        vec![ContactEntry {
+            contact_name: "Test Contact".to_string(),
+            contact_slug: "test_contact".to_string(),
+            channel_slug: "mock",
+            channel_display_name: "Mock",
+            address: "irrelevant-for-the-mock".to_string(),
+        }],
+    );
     let mut senders: HashMap<&'static str, Box<dyn Channel>> = HashMap::new();
     senders.insert("mock", Box::new(MockChannel));
-    sendmail_mcp::build_router(tools, senders, "test-token".to_string())
+    sendmail_mcp::build_router(active_channels, Arc::new(RwLock::new(contacts)), senders, "test-token".to_string())
 }
 
 /// `logging::log_requests` extracts `ConnectInfo<SocketAddr>`, which in
@@ -99,7 +108,7 @@ async fn mcp_endpoint_rejects_missing_bearer_token() {
 }
 
 #[tokio::test]
-async fn tools_list_returns_the_configured_mock_tool() {
+async fn tools_list_returns_the_mock_channel_tools() {
     let app = test_app();
     let request = Request::builder()
         .method("POST")
@@ -114,9 +123,10 @@ async fn tools_list_returns_the_configured_mock_tool() {
 
     let json = body_json(response).await;
     let tools = json["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 1);
-    assert_eq!(tools[0]["name"], "send_to_test_contact_via_mock");
-    assert_eq!(tools[0]["title"], "Test Contact — Mock");
+    assert_eq!(tools.len(), 2);
+    let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+    assert!(names.contains(&"send_via_mock"));
+    assert!(names.contains(&"list_mock_contacts"));
 }
 
 #[tokio::test]
@@ -129,7 +139,7 @@ async fn tools_call_invokes_the_mock_channel_and_reports_success() {
         .header("accept", "application/json, text/event-stream")
         .header("authorization", "Bearer test-token")
         .body(Body::from(
-            r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_to_test_contact_via_mock","arguments":{"subject":"Hello","body":"Test content"}}}"#,
+            r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_via_mock","arguments":{"contact":"test_contact","subject":"Hello","body":"Test content"}}}"#,
         ))
         .unwrap();
     let response = app.oneshot(with_fake_connect_info(request)).await.unwrap();
@@ -138,5 +148,47 @@ async fn tools_call_invokes_the_mock_channel_and_reports_success() {
     let json = body_json(response).await;
     assert_eq!(json["result"]["isError"], false);
     let text = json["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("Test Contact"));
+}
+
+#[tokio::test]
+async fn tools_call_rejects_unknown_contact() {
+    let app = test_app();
+    let request = Request::builder()
+        .method("POST")
+        .uri("/")
+        .header("content-type", "application/json")
+        .header("accept", "application/json, text/event-stream")
+        .header("authorization", "Bearer test-token")
+        .body(Body::from(
+            r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"send_via_mock","arguments":{"contact":"nobody","subject":"Hello","body":"Test content"}}}"#,
+        ))
+        .unwrap();
+    let response = app.oneshot(with_fake_connect_info(request)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = body_json(response).await;
+    assert!(json["error"]["message"].as_str().unwrap().contains("unknown contact"));
+}
+
+#[tokio::test]
+async fn list_contacts_tool_returns_the_configured_contact() {
+    let app = test_app();
+    let request = Request::builder()
+        .method("POST")
+        .uri("/")
+        .header("content-type", "application/json")
+        .header("accept", "application/json, text/event-stream")
+        .header("authorization", "Bearer test-token")
+        .body(Body::from(
+            r#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_mock_contacts","arguments":{}}}"#,
+        ))
+        .unwrap();
+    let response = app.oneshot(with_fake_connect_info(request)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = body_json(response).await;
+    let text = json["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("test_contact"));
     assert!(text.contains("Test Contact"));
 }
