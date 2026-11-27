@@ -5,15 +5,15 @@ use axum::extract::{ConnectInfo, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 
-/// Wird von auth.rs auf abgelehnte Responses gesetzt, damit die Logzeile den
-/// Ablehnungsgrund mit ausgibt, statt eine eigene WARN-Zeile zu schreiben.
+/// Set by auth.rs on rejected responses so the log line can include the
+/// rejection reason instead of writing a separate WARN line.
 #[derive(Clone)]
 pub struct RejectReason(pub &'static str);
 
-/// Eine Logzeile pro Request statt tower-http's Default (zwei Zeilen +
-/// rmcp's eigenes internes Session-/Response-Logging). Client-IP kommt aus
-/// X-Forwarded-For (von Traefik gesetzt), mit Fallback auf die direkte
-/// TCP-Peer-Adresse für den Fall, dass mal kein Proxy davorhängt (z.B. lokal).
+/// One log line per request instead of tower-http's default (two lines +
+/// rmcp's own internal session/response logging). Client IP comes from
+/// X-Forwarded-For (set by Traefik), falling back to the direct TCP peer
+/// address for cases where there's no proxy in front (e.g. locally).
 pub async fn log_requests(ConnectInfo(peer): ConnectInfo<SocketAddr>, req: Request, next: Next) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().to_string();

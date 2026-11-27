@@ -13,17 +13,17 @@ pub fn channel_def() -> ChannelDef {
     }
 }
 
-/// Anders als bei E-Mail/Telegram/ntfy gibt es bei Discord Incoming Webhooks
-/// kein gemeinsames Server-Geheimnis in ENV - die Webhook-URL selbst enthält
-/// das Secret und ist pro Kontakt/Channel verschieden (siehe IDEA.md). Sie
-/// steht deshalb als Adresse in config.toml statt in .env; die Prüfung hier
-/// ist rein formal (Format/Host), keine Netzwerkabfrage.
+/// Unlike email/Telegram/ntfy, Discord Incoming Webhooks have no shared
+/// server secret in ENV - the webhook URL itself contains the secret and
+/// is different per contact/channel (see CHANNELS.md). It therefore lives
+/// as an address in config.toml instead of in .env; the check here is
+/// purely formal (format/host), no network call.
 fn validate_webhook_url(url: &str) -> Result<()> {
-    let parsed = reqwest::Url::parse(url).with_context(|| format!("keine gültige URL: '{url}'"))?;
+    let parsed = reqwest::Url::parse(url).with_context(|| format!("not a valid URL: '{url}'"))?;
     let host_ok = matches!(parsed.host_str(), Some("discord.com") | Some("discordapp.com") | Some("ptb.discord.com") | Some("canary.discord.com"));
     let path_ok = parsed.path().starts_with("/api/webhooks/");
     if parsed.scheme() != "https" || !host_ok || !path_ok {
-        bail!("keine gültige Discord-Webhook-URL ('{url}') - erwartet wird https://discord.com/api/webhooks/<id>/<token>");
+        bail!("not a valid Discord webhook URL ('{url}') - expected https://discord.com/api/webhooks/<id>/<token>");
     }
     Ok(())
 }
@@ -32,9 +32,8 @@ fn from_env() -> Result<Box<dyn Channel>> {
     Ok(Box::new(DiscordConfig { client: reqwest::Client::new() }))
 }
 
-/// Keine Felder - siehe Kommentar bei `validate_webhook_url`, warum Discord
-/// (im Unterschied zu den anderen Kanälen) keine gemeinsame ENV-Konfiguration
-/// braucht.
+/// No fields - see the comment on `validate_webhook_url` for why Discord
+/// (unlike the other channels) needs no shared ENV configuration.
 struct DiscordConfig {
     client: reqwest::Client,
 }
@@ -46,11 +45,11 @@ struct WebhookPayload<'a> {
 
 #[async_trait]
 impl Channel for DiscordConfig {
-    /// Es gibt keine gemeinsame Verbindung/kein gemeinsames Secret, das sich
-    /// unabhängig von einer konkreten Kontakt-Webhook-URL prüfen ließe (siehe
-    /// oben) - der Startup-Check ist deshalb ein bewusstes No-Op. Ob eine
-    /// einzelne Webhook-URL tatsächlich funktioniert, zeigt sich erst beim
-    /// ersten echten Versand an den jeweiligen Kontakt.
+    /// There is no shared connection/shared secret that could be checked
+    /// independently of a specific contact's webhook URL (see above) - the
+    /// startup check is therefore a deliberate no-op. Whether an
+    /// individual webhook URL actually works only shows up on the first
+    /// real send attempt to that particular contact.
     async fn test_connection(&self) -> Result<()> {
         Ok(())
     }
@@ -63,12 +62,12 @@ impl Channel for DiscordConfig {
             .json(&WebhookPayload { content: &content })
             .send()
             .await
-            .context("Discord-Versand fehlgeschlagen (Netzwerk)")?;
+            .context("Discord send failed (network)")?;
 
         let status = response.status();
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
-            bail!("Discord-Versand fehlgeschlagen: HTTP {status} - {text}");
+            bail!("Discord send failed: HTTP {status} - {text}");
         }
         Ok(())
     }

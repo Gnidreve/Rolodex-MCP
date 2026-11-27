@@ -14,17 +14,17 @@ pub fn channel_def() -> ChannelDef {
     }
 }
 
-/// ntfy-Topics sind faktisch das Secret (wer den Topic-Namen kennt, kann
-/// mitlesen) - der erlaubte Zeichensatz ist bewusst konservativ, damit kein
-/// Wert versehentlich die URL-Pfadstruktur ("/") oder HTTP-Header (Whitespace)
-/// durcheinanderbringt.
+/// ntfy topics are effectively the secret (whoever knows the topic name
+/// can read along) - the allowed character set is deliberately
+/// conservative, so no value can accidentally mess up the URL path
+/// structure ("/") or HTTP headers (whitespace).
 fn validate_topic(topic: &str) -> Result<()> {
     let valid = !topic.is_empty()
         && topic
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
     if !valid {
-        bail!("kein gültiges ntfy-Topic ('{topic}') - erlaubt sind nur Buchstaben, Zahlen, '_' und '-'");
+        bail!("not a valid ntfy topic ('{topic}') - only letters, digits, '_' and '-' are allowed");
     }
     Ok(())
 }
@@ -33,14 +33,14 @@ fn from_env() -> Result<Box<dyn Channel>> {
     Ok(Box::new(NtfyConfig::from_env()?))
 }
 
-/// Server + optionaler Access-Token kommen aus ENV, nie aus config.toml.
+/// Server + optional access token come from ENV, never from config.toml.
 #[derive(Debug, Clone)]
 struct NtfyConfig {
-    /// Ohne abschließenden "/", z.B. "https://ntfy.sh" (Default) oder eine
-    /// selbst gehostete Instanz.
+    /// Without a trailing "/", e.g. "https://ntfy.sh" (default) or a
+    /// self-hosted instance.
     server: String,
-    /// Nur nötig, wenn der Server/das Topic Zugriffskontrolle verlangt -
-    /// der öffentliche ntfy.sh-Dienst braucht i.d.R. keinen.
+    /// Only needed if the server/topic requires access control - the
+    /// public ntfy.sh service usually doesn't need one.
     access_token: Option<String>,
 }
 
@@ -77,23 +77,23 @@ struct HealthResponse {
 
 #[async_trait]
 impl Channel for NtfyConfig {
-    /// ntfy hat keine Auth-Prüfung pro Topic (Topics werden implizit beim
-    /// ersten Publish angelegt) - `test_connection` prüft stattdessen nur,
-    /// ob der Server erreichbar und gesund ist (`GET /v1/health`).
+    /// ntfy has no per-topic auth check (topics are implicitly created on
+    /// first publish) - `test_connection` instead only checks whether the
+    /// server is reachable and healthy (`GET /v1/health`).
     async fn test_connection(&self) -> Result<()> {
         let url = format!("{}/v1/health", self.server);
         let response = self
             .authorize(self.client().get(&url))
             .send()
             .await
-            .context("ntfy-Verbindungstest fehlgeschlagen (Netzwerk)")?;
+            .context("ntfy connection test failed (network)")?;
         let status = response.status();
         if !status.is_success() {
-            bail!("ntfy-Verbindungstest fehlgeschlagen: HTTP {status}");
+            bail!("ntfy connection test failed: HTTP {status}");
         }
-        let health: HealthResponse = response.json().await.context("ntfy-Health-Antwort nicht lesbar")?;
+        let health: HealthResponse = response.json().await.context("ntfy health response not readable")?;
         if !health.healthy {
-            bail!("ntfy-Verbindungstest fehlgeschlagen: Server meldet sich nicht als 'healthy'");
+            bail!("ntfy connection test failed: server does not report itself as 'healthy'");
         }
         Ok(())
     }
@@ -106,12 +106,12 @@ impl Channel for NtfyConfig {
             .body(body.to_string())
             .send()
             .await
-            .context("ntfy-Versand fehlgeschlagen (Netzwerk)")?;
+            .context("ntfy send failed (network)")?;
 
         let status = response.status();
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
-            bail!("ntfy-Versand fehlgeschlagen: HTTP {status} - {text}");
+            bail!("ntfy send failed: HTTP {status} - {text}");
         }
         Ok(())
     }
@@ -134,10 +134,10 @@ mod tests {
         assert!(validate_topic("foo bar").is_err());
     }
 
-    // Beide Fälle in einem Test statt zwei separaten: NTFY_SERVER ist ein
-    // Prozess-globaler Zustand, und cargo test führt Tests standardmäßig
-    // parallel in Threads desselben Prozesses aus - zwei Tests, die
-    // dieselbe ENV-Variable setzen/löschen, wären ein Race.
+    // Both cases in one test instead of two separate ones: NTFY_SERVER is
+    // process-global state, and cargo test runs tests in parallel threads
+    // of the same process by default - two tests setting/removing the
+    // same ENV variable would race.
     #[test]
     fn server_from_env_defaults_and_strips_trailing_slash() {
         std::env::remove_var("NTFY_SERVER");

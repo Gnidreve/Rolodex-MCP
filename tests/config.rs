@@ -1,27 +1,27 @@
-//! Integrationstests für `sendmail_mcp::config::load_contacts` über die
-//! öffentliche Lib-API - kein Netzwerk, keine Kanal-ENV-Variablen nötig,
-//! da nur E-Mail (rein formale Validierung) als Kanal registriert ist.
+//! Integration tests for `sendmail_mcp::config::load_contacts` via the
+//! public lib API - no network, no channel ENV variables needed, since
+//! only email (pure format validation) is registered as a channel.
 
 use sendmail_mcp::config::load_contacts;
 
 fn write_config(contents: &str) -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().expect("temp dir");
     let path = dir.path().join("config.toml");
-    std::fs::write(&path, contents).expect("config schreiben");
+    std::fs::write(&path, contents).expect("writing config");
     (dir, path)
 }
 
 #[test]
 fn missing_file_produces_readable_error() {
-    let err = load_contacts(std::path::Path::new("/nicht/vorhanden/config.toml")).unwrap_err();
-    assert!(err.to_string().contains("konnte config nicht lesen"));
+    let err = load_contacts(std::path::Path::new("/does/not/exist/config.toml")).unwrap_err();
+    assert!(err.to_string().contains("could not read config"));
 }
 
 #[test]
 fn empty_contact_list_is_rejected() {
     let (_dir, path) = write_config("");
     let err = load_contacts(&path).unwrap_err();
-    assert!(err.to_string().contains("keinen einzigen [[to]]-Eintrag"));
+    assert!(err.to_string().contains("not contain a single [[to]] entry"));
 }
 
 #[test]
@@ -34,7 +34,7 @@ email = "max@example.com"
 "#,
     );
     let err = load_contacts(&path).unwrap_err();
-    assert!(err.to_string().contains("leeren name"));
+    assert!(err.to_string().contains("empty name"));
 }
 
 #[test]
@@ -50,7 +50,7 @@ name = "Erika Musterfrau"
 email = "erika@example.com"
 "#,
     );
-    let tools = load_contacts(&path).expect("gültige Config");
+    let tools = load_contacts(&path).expect("valid config");
     assert_eq!(tools.len(), 2);
     let names: Vec<&str> = tools.iter().map(|t| t.tool_name.as_str()).collect();
     assert!(names.contains(&"send_to_max_mustermann_via_email"));
@@ -59,9 +59,9 @@ email = "erika@example.com"
 
 #[test]
 fn blank_channel_value_counts_as_not_configured() {
-    // Ein leerer String (nach trim()) für ein Kanal-Feld zählt nicht als
-    // konfigurierter Kanal - ohne einen anderen Kanal muss das wie "gar
-    // kein Kanal" behandelt werden und der Server-Start ablehnen.
+    // An empty string (after trim()) for a channel field doesn't count as
+    // a configured channel - without another channel this must be treated
+    // as "no channel at all" and reject the server start.
     let (_dir, path) = write_config(
         r#"
 [[to]]
@@ -70,5 +70,5 @@ email = "   "
 "#,
     );
     let err = load_contacts(&path).unwrap_err();
-    assert!(err.to_string().contains("keinen einzigen Kanal"));
+    assert!(err.to_string().contains("not a single channel"));
 }

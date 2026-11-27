@@ -1,104 +1,103 @@
-# Idee: Weitere Outbound-Kanäle neben E-Mail
+# Idea: additional outbound channels besides email
 
-Status: Telegram, ntfy.sh, Discord und Slack sind umgesetzt (siehe Tabelle
-unten und die jeweiligen PRs) — E-Mail ist der einzige bereits auf `main`
-gemergte Kanal, die anderen vier warten als offene Pull Requests auf den
-Merge (siehe [CONTRIBUTING.md](CONTRIBUTING.md) für die Branch-pro-Kanal-
-Vorgehensweise). Der Rest dieses Dokuments ist weiterhin offen/Brainstorming.
-Ziel: das bestehende Prinzip von `Rolodex MCP` (pro Kontakt ein fest
-konfiguriertes Tool, reiner Outbound-Versand, kein generisches "sende an
-beliebige Adresse"-Tool) auf weitere Kanäle ausweiten, nicht nur E-Mail.
+Status: Telegram, ntfy.sh, Discord and Slack are implemented and merged
+into `main` alongside email — all five channels listed in the table below
+are live. The rest of this document is still open/brainstorming. Goal:
+extend the existing principle of `Rolodex MCP` (one fixed, pre-configured
+tool per contact, pure outbound send, no generic "send to arbitrary
+address" tool) to further channels, not just email.
 
-## Warum das architektonisch passt
+## Why this fits architecturally
 
-Das Kernprinzip von `Rolodex MCP` ist kanal-agnostisch:
+The core principle of `Rolodex MCP` is channel-agnostic:
 
-- Kontaktbuch (`config.toml`) definiert **wer** erreichbar ist.
-- Für jeden Kontakt entsteht **ein eigenes Tool** (`send_<kanal>_to_<name>`).
-- Der Agent sieht nie eine rohe Adresse/ID, nur den Tool-Namen.
-- Zugangsdaten (SMTP-Credentials bisher) kommen separat aus ENV, nie aus dem
-  Kontaktbuch.
+- The contact book (`config.toml`) defines **who** is reachable.
+- Each contact gets **its own tool** (`send_<channel>_to_<name>`).
+- The agent never sees a raw address/ID, only the tool name.
+- Credentials (SMTP credentials so far) come separately from ENV, never
+  from the contact book.
 
-Das lässt sich 1:1 auf andere Kanäle übertragen, solange der Kanal
-**reinen One-Way-Outbound-Versand an eine vorher bekannte Adresse/ID**
-unterstützt — also kein Channel, der ein Gespräch/Session-Handling braucht.
+This transfers 1:1 to other channels, as long as the channel supports
+**pure one-way outbound sending to a previously known address/ID** — so no
+channel that needs a conversation/session handling.
 
-## Offene Design-Frage (bevor irgendwas gebaut wird)
+## Open design question (before anything was built)
 
-Zwei Möglichkeiten, das Kontaktbuch zu erweitern:
+Two ways to extend the contact book:
 
-1. **Ein Kanal pro Kontakt**, wie bisher — `config.toml` bekommt pro Kontakt
-   ein `channel`-Feld (`email` | `telegram` | `discord` | ...) plus die
-   kanal-spezifische Adresse. Tool bleibt `send_message_to_<name>`, das
-   Backend routet intern zum richtigen Kanal.
-2. **Mehrere Kanäle pro Kontakt** — ein Kontakt kann z.B. sowohl `email` als
-   auch `telegram` hinterlegt haben, es entsteht dann pro Kontakt *und*
-   Kanal ein eigenes Tool (`send_email_to_max`, `send_telegram_to_max`).
+1. **One channel per contact**, as before — `config.toml` gets a
+   `channel` field per contact (`email` | `telegram` | `discord` | ...)
+   plus the channel-specific address. The tool stays
+   `send_message_to_<name>`, the backend routes internally to the right
+   channel.
+2. **Several channels per contact** — a contact can have e.g. both
+   `email` and `telegram` set, which then gives each contact *and*
+   channel its own tool (`send_email_to_max`, `send_telegram_to_max`).
 
-Umgesetzt wurde **Variante 2** (siehe `src/channels/`): passt besser zum
-"explizite Tool-Liste"-Prinzip (Agent sieht klar, über welchen Kanal er
-etwas verschickt), `config.toml` nutzt dafür flache, pro Kanal eigene Felder
-statt verschachtelter Kanal-Einträge.
+**Option 2 was implemented** (see `src/channels/`): fits better with the
+"explicit tool list" principle (the agent clearly sees which channel it's
+sending via), `config.toml` uses flat, per-channel fields for that
+instead of nested channel entries.
 
-## Kandidaten
+## Candidates
 
-### Sehr guter Fit (einfache API, kein OAuth, reiner Outbound-Send)
+### Very good fit (simple API, no OAuth, pure outbound send)
 
-| Status | Kanal | Mechanismus | Auth | Selbst hostbar? | Notiz |
+| Status | Channel | Mechanism | Auth | Self-hostable? | Note |
 |---|---|---|---|---|---|
-| ✅ Umgesetzt (Branch `telegram`) | **Telegram** | Bot API, `sendMessage` | Bot-Token (via BotFather) | Nein (Telegram-Server) | Empfänger muss den Bot einmal gestartet haben, dann feste `chat_id`. Sehr stabile, gut dokumentierte API, kostenlos. |
-| ✅ Umgesetzt (Branch `discord`) | **Discord** | Incoming Webhook (pro Channel eine URL) | Webhook-URL selbst ist das Secret | Nein (Discord-Server) | Kein Bot-Setup nötig, einfacher POST-Request. Passt aber eher zu "Nachricht in einen Channel" als "an eine Person" — für 1:1 bräuchte es stattdessen einen echten Bot + DM-Kanal. |
-| ✅ Umgesetzt (Branch `slack`) | **Slack** | Incoming Webhook oder `chat.postMessage` (Bot-Token) | Webhook-URL bzw. Bot-Token | Nein (Slack-Server) | Wie Discord: Webhook = Channel, für DMs an eine Person braucht es die Bot-Token-Variante mit User-ID. |
-| ⬜ Offen | **Pushover** | Ein POST (`user`-Key + `api_token` + Nachricht) | API-Token + User-Key | Nein | Explizit für genau diesen Anwendungsfall gebaut ("sende mir eine Push-Notification"). Kleiner Jahrespreis pro Nutzer (einmalig, kein Abo). Sehr simpel zu integrieren. |
-| ✅ Umgesetzt (Branch `ntfy`) | **ntfy.sh** | POST auf `https://ntfy.sh/<topic>` (oder eigene Instanz) | Optional (Topic ist quasi das Secret, oder eigener Access-Token bei selbst gehosteter Instanz) | **Ja** | Open Source, kein Account nötig für den öffentlichen Dienst. Passt gut zum Coolify-Self-Hosting-Ansatz aus diesem Projekt. |
-| ⬜ Offen | **Gotify** | POST an eigene Gotify-Instanz mit App-Token | App-Token | **Ja** | Wie ntfy, aber man hostet den Server komplett selbst (z.B. auch via Coolify). Etwas mehr Betriebsaufwand als ntfy. |
+| ✅ Implemented | **Telegram** | Bot API, `sendMessage` | Bot token (via BotFather) | No (Telegram servers) | Recipient must have started the bot once, then a fixed `chat_id`. Very stable, well-documented API, free. |
+| ✅ Implemented | **Discord** | Incoming webhook (one URL per channel) | The webhook URL itself is the secret | No (Discord servers) | No bot setup needed, simple POST request. Fits "message into a channel" better than "to a person" though — 1:1 would instead need a real bot + DM channel. |
+| ✅ Implemented | **Slack** | Incoming webhook or `chat.postMessage` (bot token) | Webhook URL or bot token | No (Slack servers) | Like Discord: webhook = channel, DMs to a person need the bot-token variant with a user ID. |
+| ⬜ Open | **Pushover** | One POST (`user` key + `api_token` + message) | API token + user key | No | Built explicitly for exactly this use case ("send me a push notification"). Small one-time yearly price per user (no subscription). Very simple to integrate. |
+| ✅ Implemented | **ntfy.sh** | POST to `https://ntfy.sh/<topic>` (or your own instance) | Optional (the topic is effectively the secret, or your own access token on a self-hosted instance) | **Yes** | Open source, no account needed for the public service. Fits well with this project's Coolify self-hosting approach. |
+| ⬜ Open | **Gotify** | POST to your own Gotify instance with an app token | App token | **Yes** | Like ntfy, but you host the server entirely yourself (e.g. also via Coolify). A bit more operational overhead than ntfy. |
 
-### Mittlerer Fit (funktioniert, aber mehr Aufwand/Bürokratie)
+### Medium fit (works, but more effort/bureaucracy)
 
-| Status | Kanal | Mechanismus | Auth | Notiz |
+| Status | Channel | Mechanism | Auth | Note |
 |---|---|---|---|---|
-| ⬜ Offen | **SMS via Twilio/Vonage/MessageBird** | REST-API, eine Nachricht pro Call | API-Key + Account-ID | Erreicht jeden mit Handynummer, kein App-Zwang beim Empfänger. Kostet pro Nachricht, Twilio-Nummer muss gemietet werden. |
-| ⬜ Offen | **Matrix** | Client-Server-API, `PUT /rooms/{roomId}/send/...` | Access-Token eines Bot-Accounts | Selbst hostbar (eigener Homeserver), aber pro Kontakt braucht es einen gemeinsamen Room + dessen Room-ID vorab. Setup-Aufwand höher als Telegram. |
-| ⬜ Offen | **Signal** | Kein offizielles Bot-API — nur über `signal-cli` (inoffiziell) bzw. dessen REST-Wrapper (`signal-cli-rest-api`, Docker-Image) | Telefonnummer-Registrierung des Bot-Accounts | Attraktiv für privacy-fokussierte Nutzer, aber technisch der komplizierteste Kandidat hier (eigener Sidecar-Container, Geräte-Verifizierung). |
-| ⬜ Offen | **WhatsApp Business Cloud API** | Meta Graph API | Meta Business-Account + Verifizierung, Access-Token | Erreicht extrem viele Leute, aber: Meta-Business-Verifizierung nötig, außerhalb eines 24h-Antwortfensters müssen vorab genehmigte Nachrichten-Templates verwendet werden — für spontane 1:1-Nachrichten unpraktisch. |
-| ⬜ Offen | **Microsoft Teams** | Power-Automate-HTTP-Trigger (Incoming Webhooks werden von Microsoft abgekündigt) | Workflow-URL | Im Umbruch (Microsoft deprecatet die klassischen Webhooks), API-Fläche aktuell nicht stabil genug für eine Empfehlung. |
+| ⬜ Open | **SMS via Twilio/Vonage/MessageBird** | REST API, one message per call | API key + account ID | Reaches anyone with a phone number, no app required on the recipient's end. Costs per message, a Twilio number must be rented. |
+| ⬜ Open | **Matrix** | Client-server API, `PUT /rooms/{roomId}/send/...` | Access token of a bot account | Self-hostable (own homeserver), but each contact needs a shared room + its room ID up front. More setup effort than Telegram. |
+| ⬜ Open | **Signal** | No official bot API — only via `signal-cli` (unofficial) or its REST wrapper (`signal-cli-rest-api`, Docker image) | Phone number registration of the bot account | Attractive for privacy-focused users, but technically the most complicated candidate here (own sidecar container, device verification). |
+| ⬜ Open | **WhatsApp Business Cloud API** | Meta Graph API | Meta Business account + verification, access token | Reaches a huge number of people, but: Meta Business verification required, outside a 24h response window only pre-approved message templates may be used — impractical for spontaneous 1:1 messages. |
+| ⬜ Open | **Microsoft Teams** | Power Automate HTTP trigger (incoming webhooks are being deprecated by Microsoft) | Workflow URL | In flux (Microsoft is deprecating the classic webhooks), API surface currently not stable enough for a recommendation. |
 
-### Kein guter Fit für dieses Muster
+### Not a good fit for this pattern
 
-- **Mastodon / Bluesky**: posten öffentlich (Broadcast), nicht direkt an eine
-  Person adressiert — passt nicht zum "ein Tool pro Kontakt"-Modell.
-- Alles mit **OAuth-User-Flow** (z.B. Nachrichten im Namen eines Nutzers
-  über dessen eigenen Google/Microsoft-Account): würde eine
-  Redirect-basierte Autorisierung pro Kontakt brauchen — passt nicht zum
-  bisherigen "einmal ENV setzen, fertig"-Betriebsmodell.
+- **Mastodon / Bluesky**: post publicly (broadcast), not addressed
+  directly to a person — doesn't fit the "one tool per contact" model.
+- Anything with an **OAuth user flow** (e.g. sending messages on behalf
+  of a user via their own Google/Microsoft account): would need
+  redirect-based authorization per contact — doesn't fit the existing
+  "set ENV once, done" operating model.
 
-## Generischer Fallback-Kanal: Webhook
+## Generic fallback channel: webhook
 
-Unabhängig von einzelnen Plattformen wäre ein generischer
-`send_webhook_to_<name>`-Kanal denkbar: pro Kontakt eine feste URL + Payload
-(JSON), die z.B. an n8n, Zapier, IFTTT, Home Assistant oder irgendeinen
-eigenen Endpunkt geht. Deckt implizit sehr viele Plattformen ab, ohne dass
-für jede einzeln Code geschrieben werden muss — auf Kosten davon, dass die
-Konfiguration dann kanal-spezifisches Wissen beim Nutzer voraussetzt
-(welche URL/welches Payload-Format der Zielservice erwartet).
+Independent of individual platforms, a generic `send_webhook_to_<name>`
+channel would be conceivable: a fixed URL + JSON payload per contact,
+going to e.g. n8n, Zapier, IFTTT, Home Assistant, or any custom endpoint.
+Implicitly covers a very wide range of platforms without needing code
+written for each one individually — at the cost of the configuration then
+requiring channel-specific knowledge from the user (which URL/payload
+format the target service expects).
 
-## Empfehlung für einen ersten Schritt (falls das umgesetzt wird)
+## Recommendation for a first step (if this gets built out further)
 
-1. ✅ **Telegram** zuerst — bester Kompromiss aus Reichweite, einfacher API,
-   keine Kosten, kein Server-Betrieb nötig zusätzlich zu unserem eigenen.
-2. ✅ **ntfy.sh** als zweiter Kanal — deckt den "einfache
-   Push-Benachrichtigung an mich selbst"-Fall ab, minimal-invasiv gebaut.
-   Pushover ist weiterhin offen.
-3. Von "alles andere" bereits umgesetzt: ✅ Discord, ✅ Slack (beide als
-   Incoming-Webhook-Variante). Weiterhin offen: SMS, Matrix, Signal,
-   WhatsApp, Gotify, Pushover — je nach konkretem Bedarf, da jeweils eigene
-   Trade-offs (Broadcast- statt DM-Semantik, Kosten, Setup-Aufwand,
-   API-Stabilität).
+1. ✅ **Telegram** first — best compromise of reach, simple API, no cost,
+   no server operation needed beyond our own.
+2. ✅ **ntfy.sh** as a second channel — covers the "simple push
+   notification to myself" case, built minimally invasively. Pushover
+   remains open.
+3. Already implemented from "everything else": ✅ Discord, ✅ Slack (both
+   as the incoming-webhook variant). Still open: SMS, Matrix, Signal,
+   WhatsApp, Gotify, Pushover — depending on concrete need, since each has
+   its own trade-offs (broadcast instead of DM semantics, cost, setup
+   effort, API stability).
 
-## Nicht Teil dieser Idee
+## Not part of this idea
 
-- Kein Empfang/Antworten auf Nachrichten (bleibt reiner Outbound-Versand,
-  wie bei E-Mail auch).
-- Keine generischen "sende an beliebige Adresse"-Tools — das
-  Sicherheitsprinzip (Agent kennt nur Namen, nie rohe Adressen/IDs) gilt
-  für jeden neuen Kanal genauso wie für E-Mail.
+- No receiving/replying to messages (stays pure outbound sending, as
+  with email too).
+- No generic "send to arbitrary address" tools — the security principle
+  (the agent only knows names, never raw addresses/IDs) applies to every
+  new channel exactly as it does to email.

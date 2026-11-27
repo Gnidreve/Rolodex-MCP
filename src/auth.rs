@@ -5,10 +5,10 @@ use axum::response::{IntoResponse, Response};
 
 use crate::logging::RejectReason;
 
-/// Prüft den `Authorization: Bearer <token>`-Header gegen MCP_BEARER_TOKEN.
-/// Wird ausschließlich vor dem POST-Handler (dem eigentlichen MCP-Traffic)
-/// eingehängt — der Healthcheck auf GET / bleibt bewusst ungeschützt, damit
-/// Docker/Coolify ihn ohne Token erreichen können.
+/// Checks the `Authorization: Bearer <token>` header against MCP_BEARER_TOKEN.
+/// Hooked in exclusively in front of the POST handler (the actual MCP
+/// traffic) - the healthcheck on GET / stays deliberately unprotected so
+/// Docker/Coolify can reach it without a token.
 pub async fn require_bearer_token(
     State(expected_token): State<String>,
     req: Request,
@@ -21,8 +21,8 @@ pub async fn require_bearer_token(
         .and_then(|v| v.to_str().ok());
 
     let reason = match received {
-        None => Some("Authorization-Header fehlt"),
-        Some(v) if v != expected_header => Some("Bearer-Token stimmt nicht überein"),
+        None => Some("Authorization header missing"),
+        Some(v) if v != expected_header => Some("bearer token does not match"),
         Some(_) => None,
     };
 

@@ -1,6 +1,6 @@
-//! Integrationstests für die Bearer-Token-Middleware
-//! (`sendmail_mcp::auth::require_bearer_token`) - gegen einen minimalen
-//! axum-Router in-process getestet, ohne echten TCP-Bind.
+//! Integration tests for the bearer token middleware
+//! (`sendmail_mcp::auth::require_bearer_token`) - tested in-process
+//! against a minimal axum router, without a real TCP bind.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -35,7 +35,7 @@ async fn rejects_wrong_bearer_token() {
         .oneshot(
             Request::builder()
                 .uri("/")
-                .header("Authorization", "Bearer falsches-token")
+                .header("Authorization", "Bearer wrong-token")
                 .body(Body::empty())
                 .unwrap(),
         )

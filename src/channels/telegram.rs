@@ -15,11 +15,11 @@ pub fn channel_def() -> ChannelDef {
     }
 }
 
-/// Telegram-Chat-IDs sind Zahlen (Gruppen/Supergruppen haben negative IDs) -
-/// nicht der @username.
+/// Telegram chat IDs are numbers (groups/supergroups have negative IDs) -
+/// not the @username.
 fn validate_chat_id(chat_id: &str) -> Result<()> {
     if chat_id.parse::<i64>().is_err() {
-        bail!("keine gültige telegram_chat_id ('{chat_id}') - muss eine Zahl sein (Gruppen/Supergruppen haben negative IDs)");
+        bail!("not a valid telegram_chat_id ('{chat_id}') - must be a number (groups/supergroups have negative IDs)");
     }
     Ok(())
 }
@@ -30,11 +30,11 @@ fn from_env() -> Result<Box<dyn Channel>> {
 }
 
 fn env_required(key: &str) -> Result<String> {
-    std::env::var(key).with_context(|| format!("Pflicht-ENV-Variable {key} ist nicht gesetzt"))
+    std::env::var(key).with_context(|| format!("required ENV variable {key} is not set"))
 }
 
-/// Bot-Token kommt aus ENV, nie aus config.toml - config.toml bleibt
-/// ausschließlich das Kontaktbuch (siehe config.rs).
+/// Bot token comes from ENV, never from config.toml - config.toml stays
+/// exclusively the contact book (see config.rs).
 #[derive(Debug, Clone)]
 struct TelegramConfig {
     bot_token: String,
@@ -52,22 +52,22 @@ struct TelegramApiResponse<T> {
 
 #[async_trait]
 impl Channel for TelegramConfig {
-    /// Prüft den Bot-Token einmal gegen die Telegram-API (`getMe`), ohne
-    /// eine Nachricht zu verschicken.
+    /// Checks the bot token once against the Telegram API (`getMe`),
+    /// without sending a message.
     async fn test_connection(&self) -> Result<()> {
         let url = format!("https://api.telegram.org/bot{}/getMe", self.bot_token);
         let response = reqwest::get(&url)
             .await
-            .context("Telegram-Verbindungstest fehlgeschlagen (Netzwerk)")?;
+            .context("Telegram connection test failed (network)")?;
         let status = response.status();
         let body: TelegramApiResponse<serde_json::Value> = response
             .json()
             .await
-            .context("Telegram-Antwort auf getMe nicht lesbar")?;
+            .context("Telegram response to getMe not readable")?;
 
         if !status.is_success() || !body.ok {
             bail!(
-                "Telegram-Verbindungstest fehlgeschlagen: {}",
+                "Telegram connection test failed: {}",
                 body.description.unwrap_or_else(|| format!("HTTP {status}"))
             );
         }
@@ -76,8 +76,8 @@ impl Channel for TelegramConfig {
 
     async fn send(&self, _contact_name: &str, chat_id: &str, subject: &str, body: &str) -> Result<()> {
         let url = format!("https://api.telegram.org/bot{}/sendMessage", self.bot_token);
-        // Telegram kennt keinen separaten Betreff - subject wird als fette
-        // erste Zeile vor den eigentlichen Text gesetzt.
+        // Telegram has no separate subject field - subject is set as a
+        // bold first line before the actual text.
         let text = format!("*{}*\n\n{}", escape_markdown(subject), escape_markdown(body));
 
         let client = reqwest::Client::new();
@@ -90,15 +90,15 @@ impl Channel for TelegramConfig {
             }))
             .send()
             .await
-            .context("Telegram-Versand fehlgeschlagen (Netzwerk)")?;
+            .context("Telegram send failed (network)")?;
 
         let status = response.status();
         let resp_body: TelegramApiResponse<serde_json::Value> =
-            response.json().await.context("Telegram-Antwort nicht lesbar")?;
+            response.json().await.context("Telegram response not readable")?;
 
         if !status.is_success() || !resp_body.ok {
             bail!(
-                "Telegram-Versand fehlgeschlagen: {}",
+                "Telegram send failed: {}",
                 resp_body.description.unwrap_or_else(|| format!("HTTP {status}"))
             );
         }
@@ -106,8 +106,8 @@ impl Channel for TelegramConfig {
     }
 }
 
-/// MarkdownV2 verlangt, dass eine feste Menge an Sonderzeichen escaped wird,
-/// sonst lehnt die Telegram-API die Nachricht komplett ab.
+/// MarkdownV2 requires a fixed set of special characters to be escaped,
+/// otherwise the Telegram API rejects the message outright.
 /// https://core.telegram.org/bots/api#markdownv2-style
 fn escape_markdown(text: &str) -> String {
     const SPECIAL: &[char] = &[
@@ -129,8 +129,8 @@ mod tests {
 
     #[test]
     fn escapes_markdown_special_chars() {
-        assert_eq!(escape_markdown("Hallo (Welt)!"), r"Hallo \(Welt\)\!");
-        assert_eq!(escape_markdown("100% fertig."), r"100% fertig\.");
+        assert_eq!(escape_markdown("Hello (World)!"), r"Hello \(World\)\!");
+        assert_eq!(escape_markdown("100% done."), r"100% done\.");
     }
 
     #[test]

@@ -9,8 +9,8 @@ use sendmail_mcp::channels::{self, Channel};
 use sendmail_mcp::config::load_contacts;
 use sendmail_mcp::build_router;
 
-/// `[2026-09-11 07:52:45]` statt tracing_subscribers Default
-/// (`2026-09-11T07:52:45.251010Z`) - besser lesbar in Coolifys Log-Viewer.
+/// `[2026-09-11 07:52:45]` instead of tracing_subscriber's default
+/// (`2026-09-11T07:52:45.251010Z`) - easier to read in Coolify's log viewer.
 struct BracketedUtcTime;
 
 impl tracing_subscriber::fmt::time::FormatTime for BracketedUtcTime {
@@ -21,11 +21,11 @@ impl tracing_subscriber::fmt::time::FormatTime for BracketedUtcTime {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Ohne RUST_LOG würde tracing_subscriber defaultmäßig nur ERROR loggen —
-    // damit wären auch die info!()-Zeilen unten (Kontakte geladen, Requests)
-    // unsichtbar. rmcp=warn unterdrückt rmcps eigenes internes Session-/
-    // Response-Logging (Debug-Dump jeder Antwort) im Normalbetrieb - bei
-    // Bedarf zieht RUST_LOG=debug (o.ä.) das wieder hoch.
+    // Without RUST_LOG, tracing_subscriber would default to logging only
+    // ERROR - that would also hide the info!() lines below (contacts
+    // loaded, requests). rmcp=warn suppresses rmcp's own internal
+    // session/response logging (a debug dump of every response) in normal
+    // operation - set RUST_LOG=debug (or similar) to bring it back if needed.
     tracing_subscriber::fmt()
         .with_timer(BracketedUtcTime)
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,rmcp=warn")))
@@ -33,18 +33,18 @@ async fn main() -> Result<()> {
 
     let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "/app/config.toml".into());
     let tools = load_contacts(&PathBuf::from(&config_path))
-        .with_context(|| format!("Kontaktliste konnte nicht geladen werden: {config_path}"))?;
+        .with_context(|| format!("could not load contact list: {config_path}"))?;
 
-    tracing::info!(count = tools.len(), "Tools geladen");
+    tracing::info!(count = tools.len(), "tools loaded");
     for t in &tools {
-        tracing::info!(tool = %t.tool_name, name = %t.contact_name, "Tool registriert");
+        tracing::info!(tool = %t.tool_name, name = %t.contact_name, "tool registered");
     }
 
-    // Jeder Kanal wird nur geladen (und seine Pflicht-ENV-Variablen nur
-    // verlangt), wenn das Kontaktbuch ihn tatsächlich nutzt - eine reine
-    // Telegram-Config soll z.B. keinen SMTP_HOST brauchen und umgekehrt.
-    // Diese Schleife kennt keinen einzigen konkreten Kanal namentlich -
-    // neue Kanäle registrieren sich ausschließlich über channels::registry().
+    // Each channel is only loaded (and its required ENV variables only
+    // demanded) if the contact book actually uses it - a pure Telegram
+    // config shouldn't need SMTP_HOST, for example, and vice versa. This
+    // loop doesn't know a single concrete channel by name - new channels
+    // register themselves exclusively via channels::registry().
     let mut senders: HashMap<&'static str, Box<dyn Channel>> = HashMap::new();
     for def in channels::registry() {
         let uses_channel = tools.iter().any(|t| t.channel_slug == def.slug);
@@ -52,25 +52,26 @@ async fn main() -> Result<()> {
             continue;
         }
         let sender = (def.from_env)()
-            .with_context(|| format!("{}-Konfiguration unvollständig (siehe ENV-Variablen)", def.display_name))?;
-        tracing::info!("Prüfe {}-Verbindung...", def.display_name);
+            .with_context(|| format!("{} configuration incomplete (see ENV variables)", def.display_name))?;
+        tracing::info!("checking {} connection...", def.display_name);
         sender
             .test_connection()
             .await
-            .with_context(|| format!("{}-Verbindung fehlgeschlagen - Server startet nicht", def.display_name))?;
-        tracing::info!("{}-Verbindung OK", def.display_name);
+            .with_context(|| format!("{} connection failed - server will not start", def.display_name))?;
+        tracing::info!("{} connection OK", def.display_name);
         senders.insert(def.slug, sender);
     }
 
     let bearer_token = std::env::var("MCP_BEARER_TOKEN")
-        .context("Pflicht-ENV-Variable MCP_BEARER_TOKEN ist nicht gesetzt")?;
+        .context("required ENV variable MCP_BEARER_TOKEN is not set")?;
     if !bearer_token.is_ascii() {
-        // HTTP-Header-Werte müssen ASCII sein. Mit einem nicht-ASCII-Token
-        // setzen viele HTTP-Clients den Authorization-Header gar nicht erst
-        // (statt eines Fehlers) - der Server lehnt dann jeden Request mit
-        // "Header fehlt" ab, was wie ein Client-Bug aussieht, aber ein
-        // ungültiger Token war. Lieber hier hart und sofort abbrechen.
-        bail!("MCP_BEARER_TOKEN enthält nicht-ASCII-Zeichen - HTTP-Header dürfen nur ASCII sein");
+        // HTTP header values must be ASCII. With a non-ASCII token, many
+        // HTTP clients silently don't set the Authorization header at all
+        // (instead of raising an error) - the server then rejects every
+        // request with "header missing", which looks like a client bug but
+        // was actually an invalid token. Better to fail hard and
+        // immediately here.
+        bail!("MCP_BEARER_TOKEN contains non-ASCII characters - HTTP headers must be ASCII only");
     }
 
     let app = build_router(tools, senders, bearer_token);
@@ -78,9 +79,9 @@ async fn main() -> Result<()> {
     let bind_addr: SocketAddr = std::env::var("MCP_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())
         .parse()
-        .context("MCP_BIND ist keine gültige Socket-Adresse")?;
+        .context("MCP_BIND is not a valid socket address")?;
 
-    tracing::info!(%bind_addr, "sendmail-mcp startet");
+    tracing::info!(%bind_addr, "rolodex-mcp starting");
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
 

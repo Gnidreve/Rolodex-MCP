@@ -1,10 +1,10 @@
-//! End-to-End-Integrationstest über den fertigen axum-Router
-//! (`sendmail_mcp::build_router`) - deckt Healthcheck, Bearer-Auth und den
-//! kompletten MCP-Roundtrip (tools/list, tools/call) ab, ohne echten
-//! TCP-Bind und ohne einen echten Kanal (E-Mail bräuchte einen SMTP-Server).
-//! Dafür registriert dieser Test einen simplen `MockChannel` unter dem
-//! Test-eigenen Slug "mock" - `sendmail_mcp` selbst kennt diesen Kanal nicht,
-//! er nutzt exakt dieselbe `Channel`-Schnittstelle wie E-Mail/Telegram/...
+//! End-to-end integration test over the finished axum router
+//! (`sendmail_mcp::build_router`) - covers healthcheck, bearer auth, and
+//! the complete MCP roundtrip (tools/list, tools/call), without a real
+//! TCP bind and without a real channel (email would need an SMTP server).
+//! For that, this test registers a simple `MockChannel` under the test's
+//! own slug "mock" - `sendmail_mcp` itself doesn't know this channel, it
+//! uses exactly the same `Channel` interface as email/Telegram/...
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -35,22 +35,22 @@ impl Channel for MockChannel {
 
 fn test_app() -> axum::Router {
     let tools = vec![ChannelTool {
-        contact_name: "Test Kontakt".to_string(),
+        contact_name: "Test Contact".to_string(),
         channel_slug: "mock",
         channel_display_name: "Mock",
-        address: "irrelevant-fuer-den-mock".to_string(),
-        tool_name: "send_to_test_kontakt_via_mock".to_string(),
-        title: "Test Kontakt — Mock".to_string(),
+        address: "irrelevant-for-the-mock".to_string(),
+        tool_name: "send_to_test_contact_via_mock".to_string(),
+        title: "Test Contact — Mock".to_string(),
     }];
     let mut senders: HashMap<&'static str, Box<dyn Channel>> = HashMap::new();
     senders.insert("mock", Box::new(MockChannel));
     sendmail_mcp::build_router(tools, senders, "test-token".to_string())
 }
 
-/// `logging::log_requests` extrahiert `ConnectInfo<SocketAddr>`, das im
-/// echten Betrieb von `into_make_service_with_connect_info` gesetzt wird.
-/// In einem In-Process-Test ohne echten Bind muss die Extension von Hand
-/// rein, sonst schlägt die Extraktion fehl.
+/// `logging::log_requests` extracts `ConnectInfo<SocketAddr>`, which in
+/// real operation is set by `into_make_service_with_connect_info`. In an
+/// in-process test without a real bind, the extension needs to be
+/// inserted by hand, otherwise the extraction fails.
 fn with_fake_connect_info(mut req: Request<Body>) -> Request<Body> {
     req.extensions_mut()
         .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))));
@@ -60,9 +60,9 @@ fn with_fake_connect_info(mut req: Request<Body>) -> Request<Body> {
 async fn body_json(response: axum::response::Response) -> serde_json::Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let text = String::from_utf8(bytes.to_vec()).unwrap();
-    // Streamable-HTTP-Antworten kommen als SSE-Event ("data: {...}\n\n").
+    // Streamable HTTP responses come as an SSE event ("data: {...}\n\n").
     let json_part = text.strip_prefix("data: ").unwrap_or(&text).trim();
-    serde_json::from_str(json_part).expect("gültiges JSON in der Antwort")
+    serde_json::from_str(json_part).expect("valid JSON in the response")
 }
 
 #[tokio::test]
@@ -81,7 +81,7 @@ async fn health_check_is_unauthenticated() {
 
 async fn body_of(response: axum::response::Response) -> serde_json::Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    serde_json::from_slice(&bytes).expect("gültiges JSON")
+    serde_json::from_slice(&bytes).expect("valid JSON")
 }
 
 #[tokio::test]
@@ -113,10 +113,10 @@ async fn tools_list_returns_the_configured_mock_tool() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = body_json(response).await;
-    let tools = json["result"]["tools"].as_array().expect("tools-Array");
+    let tools = json["result"]["tools"].as_array().expect("tools array");
     assert_eq!(tools.len(), 1);
-    assert_eq!(tools[0]["name"], "send_to_test_kontakt_via_mock");
-    assert_eq!(tools[0]["title"], "Test Kontakt — Mock");
+    assert_eq!(tools[0]["name"], "send_to_test_contact_via_mock");
+    assert_eq!(tools[0]["title"], "Test Contact — Mock");
 }
 
 #[tokio::test]
@@ -129,7 +129,7 @@ async fn tools_call_invokes_the_mock_channel_and_reports_success() {
         .header("accept", "application/json, text/event-stream")
         .header("authorization", "Bearer test-token")
         .body(Body::from(
-            r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_to_test_kontakt_via_mock","arguments":{"subject":"Hallo","body":"Testinhalt"}}}"#,
+            r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_to_test_contact_via_mock","arguments":{"subject":"Hello","body":"Test content"}}}"#,
         ))
         .unwrap();
     let response = app.oneshot(with_fake_connect_info(request)).await.unwrap();
@@ -138,5 +138,5 @@ async fn tools_call_invokes_the_mock_channel_and_reports_success() {
     let json = body_json(response).await;
     assert_eq!(json["result"]["isError"], false);
     let text = json["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains("Test Kontakt"));
+    assert!(text.contains("Test Contact"));
 }

@@ -13,7 +13,7 @@ pub fn channel_def() -> ChannelDef {
     ChannelDef {
         config_key: "email",
         slug: "email",
-        display_name: "E-Mail",
+        display_name: "Email",
         validate: validate_address,
         from_env,
     }
@@ -21,7 +21,7 @@ pub fn channel_def() -> ChannelDef {
 
 fn validate_address(address: &str) -> Result<()> {
     if !address.contains('@') {
-        bail!("keine gültige E-Mail-Adresse ('{address}')");
+        bail!("not a valid email address ('{address}')");
     }
     Ok(())
 }
@@ -30,8 +30,8 @@ fn from_env() -> Result<Box<dyn Channel>> {
     Ok(Box::new(SmtpConfig::from_env()?))
 }
 
-/// Komplette SMTP-Konfiguration kommt aus ENV, nicht aus der config.toml.
-/// Die config.toml bleibt dadurch ausschließlich das Kontaktbuch.
+/// Complete SMTP configuration comes from ENV, not from config.toml.
+/// That keeps config.toml exclusively the contact book.
 #[derive(Debug, Clone)]
 struct SmtpConfig {
     host: String,
@@ -39,7 +39,7 @@ struct SmtpConfig {
     username: Option<String>,
     password: Option<String>,
     from_address: String,
-    /// Anzeigename im "From"-Header, unabhängig von der tatsächlichen Absenderadresse.
+    /// Display name in the "From" header, independent of the actual sender address.
     from_name: Option<String>,
     encryption: Encryption,
     timeout_secs: u64,
@@ -58,7 +58,7 @@ impl SmtpConfig {
         let port: u16 = std::env::var("SMTP_PORT")
             .unwrap_or_else(|_| "587".to_string())
             .parse()
-            .context("SMTP_PORT ist keine gültige Portnummer")?;
+            .context("SMTP_PORT is not a valid port number")?;
         let username = non_empty(std::env::var("SMTP_USERNAME").ok());
         let password = non_empty(std::env::var("SMTP_PASSWORD").ok());
         let from_address = env_required("SMTP_FROM_ADDRESS")?;
@@ -72,16 +72,16 @@ impl SmtpConfig {
             "starttls" => Encryption::StartTls,
             "tls" => Encryption::Tls,
             "none" => Encryption::None,
-            other => bail!("SMTP_ENCRYPTION unbekannt: '{other}' (erlaubt: starttls|tls|none)"),
+            other => bail!("unknown SMTP_ENCRYPTION: '{other}' (allowed: starttls|tls|none)"),
         };
 
         let timeout_secs: u64 = std::env::var("SMTP_TIMEOUT_SECS")
             .unwrap_or_else(|_| "30".to_string())
             .parse()
-            .context("SMTP_TIMEOUT_SECS ist keine gültige Zahl")?;
+            .context("SMTP_TIMEOUT_SECS is not a valid number")?;
 
         if username.is_some() != password.is_some() {
-            bail!("SMTP_USERNAME und SMTP_PASSWORD müssen entweder beide gesetzt sein oder beide fehlen");
+            bail!("SMTP_USERNAME and SMTP_PASSWORD must either both be set or both be absent");
         }
 
         Ok(Self {
@@ -100,10 +100,10 @@ impl SmtpConfig {
         let mut builder = match self.encryption {
             Encryption::StartTls => {
                 AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.host)
-                    .context("konnte STARTTLS-Relay nicht aufbauen")?
+                    .context("could not build STARTTLS relay")?
             }
             Encryption::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&self.host)
-                .context("konnte TLS-Relay nicht aufbauen")?,
+                .context("could not build TLS relay")?,
             Encryption::None => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.host),
         }
         .port(self.port)
@@ -118,7 +118,7 @@ impl SmtpConfig {
 }
 
 fn env_required(key: &str) -> Result<String> {
-    std::env::var(key).with_context(|| format!("Pflicht-ENV-Variable {key} ist nicht gesetzt"))
+    std::env::var(key).with_context(|| format!("required ENV variable {key} is not set"))
 }
 
 fn non_empty(v: Option<String>) -> Option<String> {
@@ -127,35 +127,35 @@ fn non_empty(v: Option<String>) -> Option<String> {
 
 #[async_trait]
 impl Channel for SmtpConfig {
-    /// Baut die Verbindung einmal komplett auf (inkl. STARTTLS/TLS und AUTH,
-    /// falls konfiguriert) und wieder ab, ohne eine Mail zu verschicken.
+    /// Builds the connection once completely (incl. STARTTLS/TLS and AUTH,
+    /// if configured) and tears it back down, without sending an email.
     async fn test_connection(&self) -> Result<()> {
         let transport = self.build_transport()?;
         let connected = transport
             .test_connection()
             .await
-            .context("SMTP-Verbindungstest fehlgeschlagen")?;
+            .context("SMTP connection test failed")?;
         if !connected {
-            bail!("SMTP-Verbindungstest fehlgeschlagen: Server hat NOOP nicht bestätigt");
+            bail!("SMTP connection test failed: server did not confirm NOOP");
         }
         Ok(())
     }
 
     async fn send(&self, contact_name: &str, address: &str, subject: &str, body: &str) -> Result<()> {
-        // Mailbox::new statt format!+parse: baut die Adresse direkt aus
-        // Name (optional) + Address zusammen, ohne dass ein "@" im
-        // Anzeigenamen (z.B. wenn from_name auf from_address zurückfällt)
-        // als unquotiertes RFC-5322-Sonderzeichen den String-Parser stolpern
-        // lässt.
+        // Mailbox::new instead of format!+parse: builds the address
+        // directly from name (optional) + address, without an "@" in the
+        // display name (e.g. when from_name falls back to from_address)
+        // tripping up the string parser as an unquoted RFC 5322 special
+        // character.
         let from_address: Address = self
             .from_address
             .parse()
-            .context("SMTP_FROM_ADDRESS ist keine gültige Absenderadresse")?;
+            .context("SMTP_FROM_ADDRESS is not a valid sender address")?;
         let from = Mailbox::new(self.from_name.clone(), from_address);
 
         let to_address: Address = address
             .parse()
-            .with_context(|| format!("Kontakt-E-Mail ist ungültig: {address}"))?;
+            .with_context(|| format!("contact email is invalid: {address}"))?;
         let to = Mailbox::new(Some(contact_name.to_string()), to_address);
 
         let email = Message::builder()
@@ -164,13 +164,13 @@ impl Channel for SmtpConfig {
             .subject(subject)
             .header(ContentType::TEXT_PLAIN)
             .body(body.to_string())
-            .context("konnte E-Mail nicht zusammenbauen")?;
+            .context("could not assemble email")?;
 
         let transport = self.build_transport()?;
         transport
             .send(email)
             .await
-            .context("SMTP-Versand fehlgeschlagen")?;
+            .context("SMTP send failed")?;
 
         Ok(())
     }
@@ -182,14 +182,14 @@ mod tests {
 
     #[test]
     fn mailbox_without_display_name_is_valid() {
-        // Regression: die alte Implementierung baute den From-Header über
-        // format!("{from_display} <{addr}>").parse(), und wenn SMTP_FROM_NAME
-        // fehlte, fiel from_display auf die Adresse selbst zurück - macht
-        // "test@example.com <test@example.com>", ein unquotiertes "@" im
-        // RFC-5322-Anzeigenamen, das lettres Mailbox-Parser ablehnt. Erst
-        // beim ersten echten Sendeversuch aufgefallen (vorher nie live
-        // getestet). Mailbox::new umgeht das Problem komplett, weil kein
-        // String mehr geparst werden muss.
+        // Regression: the old implementation built the From header via
+        // format!("{from_display} <{addr}>").parse(), and when
+        // SMTP_FROM_NAME was missing, from_display fell back to the
+        // address itself - producing "test@example.com <test@example.com>",
+        // an unquoted "@" in the RFC 5322 display name, which lettre's
+        // Mailbox parser rejects. Only surfaced on the first real send
+        // attempt (never tested live before). Mailbox::new sidesteps the
+        // problem entirely, because no string needs to be parsed anymore.
         let address: Address = "test@example.com".parse().unwrap();
         let mailbox = Mailbox::new(None, address);
         assert_eq!(mailbox.to_string(), "test@example.com");

@@ -1,84 +1,82 @@
 # Deployment / Self-Hosting
 
-Vier gleichwertige Wege, keiner "besser" als der andere — je nachdem, was
-auf dem Zielsystem schon vorhanden ist: Dev (lokaler Rust-Build), Binary
-(fertiges Release-Binary, kein Rust nötig), Docker (fertiges Image, kein
-Repo-Checkout nötig) und Docker Compose (lokaler Build + Healthcheck/
-Restart-Policy out of the box). Kurzanleitungen für alle vier stehen in
-der [README](../README.md#installation); hier nur die Details, die dort
-keinen Platz haben.
+Four equally valid ways, none "better" than the other — depending on
+what's already available on the target system: Dev (local Rust build),
+Binary (prebuilt release binary, no Rust needed), Docker (ready-made
+image, no repo checkout needed) and Docker Compose (local build +
+healthcheck/restart policy out of the box). Quick instructions for all
+four are in the [README](../README.md#installation); only the details
+that don't fit there are here.
 
-## Release-Pipeline
+## Release pipeline
 
-Ein einziger Workflow (`.github/workflows/release.yml`) erzeugt bei jedem
-Push nach `main`, der die Versionsnummer in `Cargo.toml` ändert, automatisch
-einen Git-Tag `vX.Y.Z` + eine GitHub Release und baut dafür parallel:
+A single workflow (`.github/workflows/release.yml`) automatically creates
+a git tag `vX.Y.Z` + a GitHub Release on every push to `main` that
+changes the version number in `Cargo.toml`, and builds in parallel for it:
 
-- **Binaries** für sechs Zielplattformen (Linux x86_64/aarch64 je glibc und
-  musl, macOS Intel/Apple Silicon), samt SHA-256-Checksummen, als
-  Release-Assets. Die musl-Varianten sind vollständig statisch gelinkt —
-  kein `glibc`, kein `libssl`, keine Laufzeit-Abhängigkeit überhaupt (seit
-  dem Wechsel von `native-tls`/OpenSSL auf `rustls` mit gebündelten
-  Root-Zertifikaten, siehe Commit-Historie). Das macht sie besonders
-  robust für ältere oder minimale Distros.
-- **Docker-Image**, getaggt mit `latest` und `vX.Y.Z`, nach GHCR gepusht:
+- **Binaries** for six target platforms (Linux x86_64/aarch64 each glibc
+  and musl, macOS Intel/Apple Silicon), with SHA-256 checksums, as release
+  assets. The musl variants are fully statically linked — no `glibc`, no
+  `libssl`, no runtime dependency at all (since the switch from
+  `native-tls`/OpenSSL to `rustls` with bundled root certificates, see the
+  commit history). That makes them especially robust on older or minimal
+  distros.
+- **Docker image**, tagged with `latest` and `vX.Y.Z`, pushed to GHCR:
   ```
   ghcr.io/gnidreve/rolodex-mcp:latest
   ```
 
-Ein reiner Dependency-Bump oder eine Doku-Änderung auf `main`, ohne
-Versionssprung in `Cargo.toml`, löst bewusst **keinen** neuen Build aus —
-Release-Artefakte entstehen ausschließlich entlang der im Code
-versionierten Nummer, nicht bei jedem Commit.
+A pure dependency bump or a documentation change on `main`, without a
+version jump in `Cargo.toml`, deliberately triggers **no** new build —
+release artifacts are produced exclusively alongside the version number
+tracked in the code, not on every commit.
 
-## Reverse Proxy / TLS
+## Reverse proxy / TLS
 
-Der Prozess selbst spricht nur HTTP, kein TLS. In Produktion gehört ein
-Reverse Proxy davor (Traefik, Caddy, nginx) — bei Coolify übernimmt das
-dessen eigene Traefik-Instanz automatisch.
+The process itself only speaks HTTP, no TLS. In production a reverse
+proxy belongs in front of it (Traefik, Caddy, nginx) — on Coolify its own
+Traefik instance handles that automatically.
 
-## Bekannte Stolperfallen (aus echtem Betrieb)
+## Known pitfalls (from real operation)
 
-Diese drei Punkte haben in der Praxis beim Erstdeployment wirklich
-Zeit gekostet — nicht theoretisch, sondern konkret bei einem Deployment
-über Coolify:
+These three points actually cost real time in practice during the first
+deployment — not theoretical, but concretely during a deployment via
+Coolify:
 
-- **Nicht-ASCII-Zeichen in `MCP_BEARER_TOKEN`**: HTTP-Header-Werte dürfen
-  nur ASCII sein. Mit einem nicht-ASCII-Token setzen manche HTTP-Clients
-  den `Authorization`-Header stillschweigend gar nicht erst — der Server
-  lehnt dann *jeden* Request mit "Header fehlt" ab, was wie ein
-  Client-Bug aussieht, tatsächlich aber ein ungültiger Token war. Der
-  Server bricht das deshalb schon beim Start hart ab, mit einer klaren
-  Fehlermeldung, statt das Problem erst bei merkwürdigen 401ern im
-  Log-Viewer auffallen zu lassen. Abhilfe: Token aus rein druckbaren
-  ASCII-Zeichen generieren.
-- **Portkonflikt bei Docker Compose**: Ein festes `ports: - "8080:8080"`
-  kollidiert, sobald ein zweiter Dienst auf demselben Host-Port lauschen
-  will. Bei Coolify (oder jedem Setup mit vorgeschaltetem Reverse Proxy)
-  reicht `expose: - "8080"` — der Proxy routet intern, ein
-  Host-Port-Mapping ist dafür nicht nötig und verursacht nur "Bad
-  Gateway", wenn ein anderer Container den Port schon belegt.
-- **`GET /` als Healthcheck + `stateful_mode`**: rmcps
-  `StreamableHttpService` reserviert bei `stateful_mode: true` GET auf
-  derselben Route für SSE-Session-Resumption. Da dieser Server GET selbst
-  für den Healthcheck braucht und kein Session-Handling will, läuft er
-  mit `stateful_mode: false` (siehe `src/lib.rs`). Wer das ändert, verliert
-  den Healthcheck oder bricht rmcps Session-Annahmen — beides äußert sich
-  nicht als klarer Fehler, sondern als stilles Fehlverhalten.
+- **Non-ASCII characters in `MCP_BEARER_TOKEN`**: HTTP header values must
+  be ASCII only. With a non-ASCII token, some HTTP clients silently don't
+  set the `Authorization` header at all — the server then rejects *every*
+  request with "header missing", which looks like a client bug but was
+  actually an invalid token. The server therefore fails hard right at
+  startup, with a clear error message, instead of letting the problem
+  only surface as odd 401s in the log viewer. Fix: generate the token
+  from purely printable ASCII characters.
+- **Port conflict with Docker Compose**: a fixed `ports: - "8080:8080"`
+  collides as soon as a second service wants to listen on the same host
+  port. On Coolify (or any setup with a reverse proxy in front) `expose:
+  - "8080"` is enough — the proxy routes internally, a host port mapping
+  isn't needed for that and only causes "Bad Gateway" once another
+  container already occupies the port.
+- **`GET /` as healthcheck + `stateful_mode`**: rmcp's
+  `StreamableHttpService` reserves GET on the same route for SSE session
+  resumption when `stateful_mode: true`. Since this server needs GET
+  itself for the healthcheck and doesn't want session handling, it runs
+  with `stateful_mode: false` (see `src/lib.rs`). Changing that loses the
+  healthcheck or breaks rmcp's session assumptions — neither shows up as
+  a clear error, just as silent misbehavior.
 
 ## Logging
 
-Standardmäßig (ohne `RUST_LOG`) läuft der Server auf `INFO`, nicht auf
-`ERROR` (`tracing_subscriber`s Default) — sonst wären weder Startup- noch
-Request-Logs sichtbar. `RUST_LOG=debug` zieht zusätzlich rmcps eigenes
-internes Request/Response-Tracing hoch, das im Normalbetrieb bewusst auf
-`warn` gedrosselt ist (`info,rmcp=warn`), weil es sonst jede Antwort
-komplett in den Log dumpt.
+By default (without `RUST_LOG`), the server runs at `INFO`, not `ERROR`
+(`tracing_subscriber`'s default) — otherwise neither the startup logs nor
+the request logs would be visible. `RUST_LOG=debug` additionally pulls up
+rmcp's own internal request/response tracing, which is deliberately
+throttled to `warn` in normal operation (`info,rmcp=warn`), because
+otherwise it dumps every response completely into the log.
 
-## Weiterführend
+## Further reading
 
-- [architecture.md](architecture.md) — wie der Server intern
-  aufgebaut ist.
-- [security-model.md](security-model.md) — das Sicherheitsmodell, falls
-  sich die Frage "warum nicht einfach ein generisches Send-Tool"
-  stellt.
+- [architecture.md](architecture.md) — how the server is built
+  internally.
+- [security-model.md](security-model.md) — the security model, in case
+  the question "why not just a generic send tool" comes up.

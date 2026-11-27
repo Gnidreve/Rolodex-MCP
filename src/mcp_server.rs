@@ -12,12 +12,12 @@ use serde_json::{json, Map, Value};
 use crate::channels::Channel;
 use crate::config::ChannelTool;
 
-/// Ein MCP-Server, der pro konfiguriertem Kontakt UND Kanal genau EIN Tool
-/// anbietet. Es gibt bewusst KEIN generisches "send_message(channel, to,
-/// subject, body)"-Tool — weder die Adresse/Chat-ID noch der Kanal werden
-/// dem Agenten als Parameter exponiert, beides steckt fest im Tool-Namen
-/// selbst (z.B. "send_to_max_mustermann_via_telegram"). Diese Datei kennt
-/// keinen einzigen konkreten Kanal - nur den `Channel`-Trait.
+/// An MCP server that offers exactly ONE tool per configured contact AND
+/// channel. There is deliberately NO generic "send_message(channel, to,
+/// subject, body)" tool — neither the address/chat ID nor the channel are
+/// exposed to the agent as a parameter, both are baked into the tool name
+/// itself (e.g. "send_to_max_mustermann_via_telegram"). This file doesn't
+/// know a single concrete channel - only the `Channel` trait.
 #[derive(Clone)]
 pub struct SendMailServer {
     tools: Arc<Vec<ChannelTool>>,
@@ -40,14 +40,14 @@ impl SendMailServer {
         let schema = json!({
             "type": "object",
             "properties": {
-                "subject": { "type": "string", "description": "Betreff/Titel der Nachricht" },
-                "body": { "type": "string", "description": "Inhalt der Nachricht (Klartext)" }
+                "subject": { "type": "string", "description": "Subject/title of the message" },
+                "body": { "type": "string", "description": "Content of the message (plain text)" }
             },
             "required": ["subject", "body"]
         });
         match schema {
             Value::Object(map) => Arc::new(map),
-            _ => unreachable!("json!-Makro liefert hier immer ein Objekt"),
+            _ => unreachable!("the json! macro always produces an object here"),
         }
     }
 }
@@ -62,11 +62,11 @@ impl ServerHandler for SendMailServer {
                 ..Default::default()
             },
             instructions: Some(
-                "Schickt Nachrichten an fest konfigurierte Empfänger, über fest konfigurierte \
-                 Kanäle. Jede Empfänger-Kanal-Kombination hat ein eigenes Tool \
-                 (send_to_<name>_via_<kanal>) — es gibt kein generisches Tool mit freier \
-                 Adresseingabe oder Kanalwahl. Wähle das Tool, dessen Name zu gewünschtem \
-                 Empfänger UND Kanal passt, und gib subject + body an."
+                "Sends messages to fixed, pre-configured recipients, over fixed, pre-configured \
+                 channels. Every recipient-channel combination has its own tool \
+                 (send_to_<name>_via_<channel>) — there is no generic tool with a free-form \
+                 address or channel choice. Pick the tool whose name matches the desired \
+                 recipient AND channel, and provide subject + body."
                     .into(),
             ),
             ..Default::default()
@@ -82,7 +82,7 @@ impl ServerHandler for SendMailServer {
             .tools
             .iter()
             .map(|t| {
-                let description = format!("Sende eine Nachricht an {} über {}.", t.contact_name, t.channel_display_name);
+                let description = format!("Send a message to {} via {}.", t.contact_name, t.channel_display_name);
                 Tool {
                     title: Some(t.title.clone()),
                     ..Tool::new(t.tool_name.clone(), description, Self::tool_input_schema())
@@ -99,30 +99,30 @@ impl ServerHandler for SendMailServer {
     ) -> Result<CallToolResult, McpError> {
         let tool = self
             .find(&request.name)
-            .ok_or_else(|| McpError::invalid_params(format!("unbekanntes Tool: {}", request.name), None))?;
+            .ok_or_else(|| McpError::invalid_params(format!("unknown tool: {}", request.name), None))?;
 
         let args = request.arguments.unwrap_or_default();
         let subject = args
             .get("subject")
             .and_then(Value::as_str)
-            .ok_or_else(|| McpError::invalid_params("Parameter 'subject' fehlt", None))?;
+            .ok_or_else(|| McpError::invalid_params("parameter 'subject' is missing", None))?;
         let body = args
             .get("body")
             .and_then(Value::as_str)
-            .ok_or_else(|| McpError::invalid_params("Parameter 'body' fehlt", None))?;
+            .ok_or_else(|| McpError::invalid_params("parameter 'body' is missing", None))?;
 
         let sender = self
             .senders
             .get(tool.channel_slug)
-            .expect("Sender existiert immer, weil das Tool nur für konfigurierte Kanäle erzeugt wird");
+            .expect("sender always exists, because the tool is only generated for configured channels");
 
         match sender.send(&tool.contact_name, &tool.address, subject, body).await {
             Ok(()) => Ok(CallToolResult::success(vec![Content::text(format!(
-                "Nachricht an {} wurde verschickt.",
+                "Message to {} was sent.",
                 tool.contact_name
             ))])),
             Err(err) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Versand an {} fehlgeschlagen: {err:#}",
+                "Sending to {} failed: {err:#}",
                 tool.contact_name
             ))])),
         }

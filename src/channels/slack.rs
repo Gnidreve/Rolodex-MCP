@@ -13,17 +13,17 @@ pub fn channel_def() -> ChannelDef {
     }
 }
 
-/// Wie bei Discord gibt es bei Slack Incoming Webhooks kein gemeinsames
-/// Server-Geheimnis in ENV - die Webhook-URL selbst enthält das Secret und
-/// ist pro Kontakt/Channel verschieden (siehe IDEA.md). Sie steht deshalb
-/// als Adresse in config.toml statt in .env; die Prüfung hier ist rein
-/// formal (Format/Host), keine Netzwerkabfrage.
+/// Like Discord, Slack Incoming Webhooks have no shared server secret in
+/// ENV - the webhook URL itself contains the secret and is different per
+/// contact/channel (see CHANNELS.md). It therefore lives as an address in
+/// config.toml instead of in .env; the check here is purely formal
+/// (format/host), no network call.
 fn validate_webhook_url(url: &str) -> Result<()> {
-    let parsed = reqwest::Url::parse(url).with_context(|| format!("keine gültige URL: '{url}'"))?;
+    let parsed = reqwest::Url::parse(url).with_context(|| format!("not a valid URL: '{url}'"))?;
     let host_ok = parsed.host_str() == Some("hooks.slack.com");
     let path_ok = parsed.path().starts_with("/services/");
     if parsed.scheme() != "https" || !host_ok || !path_ok {
-        bail!("keine gültige Slack-Webhook-URL ('{url}') - erwartet wird https://hooks.slack.com/services/<...>");
+        bail!("not a valid Slack webhook URL ('{url}') - expected https://hooks.slack.com/services/<...>");
     }
     Ok(())
 }
@@ -32,9 +32,8 @@ fn from_env() -> Result<Box<dyn Channel>> {
     Ok(Box::new(SlackConfig { client: reqwest::Client::new() }))
 }
 
-/// Keine Felder - siehe Kommentar bei `validate_webhook_url`, warum Slack
-/// (im Unterschied zu E-Mail/Telegram/ntfy) keine gemeinsame
-/// ENV-Konfiguration braucht.
+/// No fields - see the comment on `validate_webhook_url` for why Slack
+/// (unlike email/Telegram/ntfy) needs no shared ENV configuration.
 struct SlackConfig {
     client: reqwest::Client,
 }
@@ -46,14 +45,13 @@ struct WebhookPayload<'a> {
 
 #[async_trait]
 impl Channel for SlackConfig {
-    /// Es gibt keine gemeinsame Verbindung/kein gemeinsames Secret, das sich
-    /// unabhängig von einer konkreten Kontakt-Webhook-URL prüfen ließe (siehe
-    /// oben). Anders als bei Discord liefert ein GET auf eine Slack-Webhook-
-    /// URL ohnehin keine brauchbare Metadaten-Antwort (Slack erwartet dort
-    /// ausschließlich POST) - der Startup-Check ist deshalb ebenfalls ein
-    /// bewusstes No-Op. Ob eine einzelne Webhook-URL tatsächlich
-    /// funktioniert, zeigt sich erst beim ersten echten Versand an den
-    /// jeweiligen Kontakt.
+    /// There is no shared connection/shared secret that could be checked
+    /// independently of a specific contact's webhook URL (see above).
+    /// Unlike Discord, a GET on a Slack webhook URL doesn't return any
+    /// useful metadata anyway (Slack only accepts POST there) - the
+    /// startup check is therefore likewise a deliberate no-op. Whether an
+    /// individual webhook URL actually works only shows up on the first
+    /// real send attempt to that particular contact.
     async fn test_connection(&self) -> Result<()> {
         Ok(())
     }
@@ -66,12 +64,12 @@ impl Channel for SlackConfig {
             .json(&WebhookPayload { text: &text })
             .send()
             .await
-            .context("Slack-Versand fehlgeschlagen (Netzwerk)")?;
+            .context("Slack send failed (network)")?;
 
         let status = response.status();
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
-            bail!("Slack-Versand fehlgeschlagen: HTTP {status} - {text}");
+            bail!("Slack send failed: HTTP {status} - {text}");
         }
         Ok(())
     }

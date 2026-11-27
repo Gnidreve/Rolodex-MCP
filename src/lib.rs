@@ -17,10 +17,10 @@ use crate::channels::Channel;
 use crate::config::ChannelTool;
 use crate::mcp_server::SendMailServer;
 
-/// Baut den fertigen axum-Router (Healthcheck auf GET /, MCP-Endpunkt auf
-/// POST /) aus einer bereits geladenen Tool-/Sender-Konfiguration. Von
-/// main.rs zum Starten des echten Servers genutzt, von den Integrationstests
-/// unter tests/ zum In-Process-Testen ohne echten Netzwerk-Bind.
+/// Builds the finished axum router (healthcheck on GET /, MCP endpoint on
+/// POST /) from an already-loaded tool/sender configuration. Used by
+/// main.rs to start the real server, and by the integration tests under
+/// tests/ to test in-process without an actual network bind.
 pub fn build_router(
     tools: Vec<ChannelTool>,
     senders: HashMap<&'static str, Box<dyn Channel>>,
@@ -28,10 +28,10 @@ pub fn build_router(
 ) -> axum::Router {
     let server = SendMailServer::new(tools, senders);
 
-    // Streamable HTTP ist der von rmcp empfohlene HTTP-Transport (ersetzt das
-    // alte zweigeteilte HTTP+SSE-Schema). stateful_mode: false, weil wir GET
-    // auf derselben Route als Healthcheck brauchen - bei stateful_mode: true
-    // reserviert rmcp GET für die SSE-Session-Resumption.
+    // Streamable HTTP is rmcp's recommended HTTP transport (replaces the
+    // old two-part HTTP+SSE scheme). stateful_mode: false because we need
+    // GET on the same route as a healthcheck - with stateful_mode: true
+    // rmcp reserves GET for SSE session resumption.
     let service = StreamableHttpService::new(
         move || Ok(server.clone()),
         LocalSessionManager::default().into(),
@@ -41,8 +41,8 @@ pub fn build_router(
         },
     );
 
-    // Alles auf "/": GET liefert einen ungeschützten Healthcheck, POST ist
-    // der eigentliche MCP-Endpunkt und verlangt den Bearer-Token.
+    // Everything on "/": GET returns an unauthenticated healthcheck, POST is
+    // the actual MCP endpoint and requires the bearer token.
     let health = get(|| async { Json(json!({ "status": "ok" })) });
     let mcp_route =
         post_service(service).layer(middleware::from_fn_with_state(bearer_token, auth::require_bearer_token));
