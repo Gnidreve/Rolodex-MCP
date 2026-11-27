@@ -1,6 +1,7 @@
 # Rolodex MCP
 
-[![Docker](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/docker.yml/badge.svg)](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/docker.yml)
+[![Test](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/test.yml)
+[![Release](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/Gnidreve/rolodex-mcp/actions/workflows/release.yml)
 [![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 
 Ein MCP-Server, der für jeden Kontakt aus `config.toml` **und Kanal**

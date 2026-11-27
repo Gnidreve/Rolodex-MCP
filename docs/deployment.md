@@ -8,26 +8,28 @@ Restart-Policy out of the box). Kurzanleitungen für alle vier stehen in
 der [README](../README.md#installation); hier nur die Details, die dort
 keinen Platz haben.
 
-## Fertige Binaries
+## Release-Pipeline
 
-Bei jedem Git-Tag `vX.Y.Z` baut `.github/workflows/release.yml` das
-Binary für sechs Zielplattformen (Linux x86_64/aarch64 je glibc und musl,
-macOS Intel/Apple Silicon) und lädt sie samt SHA-256-Checksummen als
-GitHub-Release-Assets hoch. Die musl-Varianten sind vollständig statisch
-gelinkt — kein `glibc`, kein `libssl`, keine Laufzeit-Abhängigkeit
-überhaupt (seit dem Wechsel von `native-tls`/OpenSSL auf `rustls` mit
-gebündelten Root-Zertifikaten, siehe Commit-Historie). Das macht sie
-besonders robust für ältere oder minimale Distros.
+Ein einziger Workflow (`.github/workflows/release.yml`) erzeugt bei jedem
+Push nach `main`, der die Versionsnummer in `Cargo.toml` ändert, automatisch
+einen Git-Tag `vX.Y.Z` + eine GitHub Release und baut dafür parallel:
 
-## Mit einem fertigen Image
+- **Binaries** für sechs Zielplattformen (Linux x86_64/aarch64 je glibc und
+  musl, macOS Intel/Apple Silicon), samt SHA-256-Checksummen, als
+  Release-Assets. Die musl-Varianten sind vollständig statisch gelinkt —
+  kein `glibc`, kein `libssl`, keine Laufzeit-Abhängigkeit überhaupt (seit
+  dem Wechsel von `native-tls`/OpenSSL auf `rustls` mit gebündelten
+  Root-Zertifikaten, siehe Commit-Historie). Das macht sie besonders
+  robust für ältere oder minimale Distros.
+- **Docker-Image**, getaggt mit `latest` und `vX.Y.Z`, nach GHCR gepusht:
+  ```
+  ghcr.io/gnidreve/rolodex-mcp:latest
+  ```
 
-Images werden per GitHub Actions nach jedem Push auf `main` (der nicht
-nur Doku/Skill-Dateien betrifft, siehe `.github/workflows/docker.yml`)
-nach GHCR gebaut:
-
-```
-ghcr.io/gnidreve/rolodex-mcp:latest
-```
+Ein reiner Dependency-Bump oder eine Doku-Änderung auf `main`, ohne
+Versionssprung in `Cargo.toml`, löst bewusst **keinen** neuen Build aus —
+Release-Artefakte entstehen ausschließlich entlang der im Code
+versionierten Nummer, nicht bei jedem Commit.
 
 ## Reverse Proxy / TLS
 
