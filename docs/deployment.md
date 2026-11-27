@@ -1,16 +1,23 @@
 # Deployment / Self-Hosting
 
-## Mit Docker Compose (empfohlen)
+Vier gleichwertige Wege, keiner "besser" als der andere — je nachdem, was
+auf dem Zielsystem schon vorhanden ist: Dev (lokaler Rust-Build), Binary
+(fertiges Release-Binary, kein Rust nötig), Docker (fertiges Image, kein
+Repo-Checkout nötig) und Docker Compose (lokaler Build + Healthcheck/
+Restart-Policy out of the box). Kurzanleitungen für alle vier stehen in
+der [README](../README.md#installation); hier nur die Details, die dort
+keinen Platz haben.
 
-```bash
-cp config.example.toml config.toml   # Kontaktbuch anpassen
-cp .env.example .env                 # Zugangsdaten eintragen
-docker compose up --build
-```
+## Fertige Binaries
 
-Der Server lauscht danach auf `http://<host>:8080/`. `GET /` ist ein
-ungeschützter Healthcheck (`{"status":"ok"}`), `docker-compose.yml`
-nutzt ihn bereits als Container-Healthcheck.
+Bei jedem Git-Tag `vX.Y.Z` baut `.github/workflows/release.yml` das
+Binary für sechs Zielplattformen (Linux x86_64/aarch64 je glibc und musl,
+macOS Intel/Apple Silicon) und lädt sie samt SHA-256-Checksummen als
+GitHub-Release-Assets hoch. Die musl-Varianten sind vollständig statisch
+gelinkt — kein `glibc`, kein `libssl`, keine Laufzeit-Abhängigkeit
+überhaupt (seit dem Wechsel von `native-tls`/OpenSSL auf `rustls` mit
+gebündelten Root-Zertifikaten, siehe Commit-Historie). Das macht sie
+besonders robust für ältere oder minimale Distros.
 
 ## Mit einem fertigen Image
 

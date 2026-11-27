@@ -2,7 +2,7 @@ FROM rust:1.90-slim AS builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev ca-certificates \
+    build-essential ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY Cargo.toml ./
@@ -12,7 +12,7 @@ COPY src ./src
 RUN cargo build --release
 
 FROM debian:bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

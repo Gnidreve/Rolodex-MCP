@@ -30,12 +30,16 @@ Kanäle: [CHANNELS.md](CHANNELS.md).
 in `channels::registry()`. `main.rs`/`config.rs`/`mcp_server.rs` kennen
 keinen Kanal namentlich. Details: [docs/architecture.md](docs/architecture.md).
 
-## Lokal bauen & prüfen
+## Installation
+
+Vier Wege, je nach dem, was du schon hast.
+
+<details>
+<summary><strong>Dev</strong> — clonen und direkt mit Cargo laufen lassen</summary>
 
 ```bash
 cargo check
 cargo test        # Unit-Tests (src/) + Integrationstests (tests/)
-cargo run
 ```
 
 ```bash
@@ -46,13 +50,59 @@ export CONFIG_PATH=./config.toml
 cargo run
 ```
 
-## Docker
+</details>
+
+<details>
+<summary><strong>Binary</strong> — fertiges Release-Binary, kein Rust/Cargo nötig</summary>
+
+Vorgebaute Binaries (Linux x86_64/aarch64, jeweils glibc und musl, macOS
+Intel/Apple Silicon) gibt es auf der
+[Releases-Seite](https://github.com/Gnidreve/rolodex-mcp/releases), inkl.
+SHA-256-Checksummen.
+
+```bash
+curl -L -o rolodex-mcp.tar.gz \
+  https://github.com/Gnidreve/rolodex-mcp/releases/latest/download/rolodex-mcp-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
+tar xzf rolodex-mcp.tar.gz
+
+cp config.example.toml config.toml
+cp .env.example .env   # ausfüllen
+export $(cat .env | xargs)
+export CONFIG_PATH=./config.toml
+./sendmail-mcp
+```
+
+Dateiname/Version an das tatsächlich aktuelle Release auf der
+Releases-Seite anpassen.
+
+</details>
+
+<details>
+<summary><strong>Docker</strong> — fertiges Image, kein Repo-Checkout nötig</summary>
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -v "$(pwd)/config.toml:/app/config.toml:ro" \
+  --env-file .env \
+  ghcr.io/gnidreve/rolodex-mcp:latest
+```
+
+`config.toml` und `.env` wie oben vorbereiten (siehe `config.example.toml`
+/ `.env.example`).
+
+</details>
+
+<details>
+<summary><strong>Docker Compose</strong> — für lokalen Build + Healthcheck/Restart-Policy</summary>
 
 ```bash
 cp config.example.toml config.toml   # anpassen
 cp .env.example .env                 # Zugangsdaten eintragen
 docker compose up --build
 ```
+
+</details>
 
 Server läuft dann auf `http://<host>:8080/`. Details, fertige Images und
 bekannte Stolperfallen beim Self-Hosting: [docs/deployment.md](docs/deployment.md).
