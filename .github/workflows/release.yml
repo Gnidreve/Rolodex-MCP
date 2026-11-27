@@ -2,14 +2,47 @@ name: Release binaries
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - "Cargo.toml"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
 
 jobs:
+  detect-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      is_new: ${{ steps.check.outputs.is_new }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read Cargo.toml version, tag it if it's new
+        id: check
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)".*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse "v$version" >/dev/null 2>&1; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+            echo "v$version already exists, skipping release"
+            exit 0
+          fi
+
+          echo "is_new=true" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$version" -m "Release v$version"
+          git push origin "v$version"
+
   upload-assets:
+    needs: detect-version
+    if: needs.detect-version.outputs.is_new == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +62,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.detect-version.outputs.version }}
 
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
@@ -36,4 +71,5 @@ jobs:
           archive: rolodex-mcp-$tag-$target
           target: ${{ matrix.target }}
           checksum: sha256
+          ref: refs/tags/v${{ needs.detect-version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
